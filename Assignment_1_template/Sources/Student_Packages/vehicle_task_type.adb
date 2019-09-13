@@ -11,16 +11,12 @@ with Vehicle_Message_Type;       use Vehicle_Message_Type;
 with Swarm_Structures_Base; use Swarm_Structures_Base;
 with Ada.Numerics; use Ada.Numerics;
 
---  with Ada.Text_IO; use Ada.Text_IO;
---  with Central_Coordinator; use Central_Coordinator;
-
 package body Vehicle_Task_Type is
-
---     God : Coordinator;
 
    task body Vehicle_Task is
 
       Vehicle_No : Positive;
+
       Recent_Messages : Inter_Vehicle_Messages;
       Local_Charging : Boolean := False;
       Time : Real := 0.0; -- time for drawing circle
@@ -36,7 +32,7 @@ package body Vehicle_Task_Type is
       begin
          Local_Charging := State;
          Recent_Messages.Charging := State;
-      end;
+      end Update_Charging;
 
       procedure Orbiting (Throttle : Real; Tick : Real) is
       begin
@@ -44,8 +40,8 @@ package body Vehicle_Task_Type is
                    Real_Elementary_Functions.Sin (Time),
                    0.0);
          Orbit := Orbit * Radius; -- (cos(Time) + sin(Time)) * Radius
-         Orbit := Orbit + Recent_Messages.Globe_Loc; -- adjusts orbiting origin
-         Orbit := Orbit + Recent_Messages.Globe_Vel; -- predicits oribiting origin
+         Orbit := Orbit + Recent_Messages.Globe_Loc; -- sets orbiting origin
+         Orbit := Orbit + Recent_Messages.Globe_Vel; -- adds velocity to generate more roboust orbit
          Time := Time + Pi / Tick; -- increment Time for next calculation
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
@@ -56,6 +52,33 @@ package body Vehicle_Task_Type is
          Put_Line (Vehicle_No'Image & " " & Info);
       end Report;
 
+      task type Message_Sender is
+         entry Async_Send (Incomming_Message_In : Inter_Vehicle_Messages;
+                           Send_Interval_In : Duration;
+                           Send_Count_In : Positive);
+      end Message_Sender;
+      type Message_Sender_Pt is access Message_Sender;
+      task body Message_Sender is
+         Incomming_Message : Inter_Vehicle_Messages;
+         Send_Interval : Duration;
+         Send_Count : Positive;
+      begin
+--           Report ("sender task created.");
+         accept Async_Send (Incomming_Message_In : Inter_Vehicle_Messages;
+                            Send_Interval_In : Duration;
+                            Send_Count_In : Positive)
+         do
+            Incomming_Message := Incomming_Message_In;
+            Send_Interval := Send_Interval_In;
+            Send_Count := Send_Count_In;
+         end Async_Send;
+
+         for I in 1 .. Send_Count loop
+            Send (Incomming_Message);
+            delay Send_Interval;
+         end loop;
+      end Message_Sender;
+
    begin
 
       -- You need to react to this call and provide your task_id.
@@ -65,8 +88,7 @@ package body Vehicle_Task_Type is
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
          Vehicle_No     := Set_Vehicle_No;
          Local_Task_Id  := Current_Task;
-
-         Recent_Messages := (Source_ID => 999, -- non-existent no, placeholder
+         Recent_Messages := (Source_ID => 999, -- non-existent no, as placeholder
                              Forwarder_ID => Vehicle_No,
                              Globe_Loc => Zero_Vector_3D,
                              Globe_Vel => Zero_Vector_3D,
@@ -95,7 +117,7 @@ package body Vehicle_Task_Type is
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
-                  Lucky_Info : constant Inter_Vehicle_Messages := (Source_ID => Vehicle_No,
+                  Lucky_Info : constant Inter_Vehicle_Messages := (Source_ID => Vehicle_No, -- to be used?
                                                                    Forwarder_ID => Vehicle_No,
                                                                    Globe_Loc => Lucky_Globe.Position,
                                                                    Globe_Vel => Lucky_Globe.Velocity,
@@ -103,7 +125,7 @@ package body Vehicle_Task_Type is
                begin
                   Recent_Messages := Lucky_Info;
                   Send (Recent_Messages);
---                    Report ("globbe nearby.");
+--                    Report ("globe nearby.");
                end;
             end if;
 
@@ -112,22 +134,17 @@ package body Vehicle_Task_Type is
             -- it should spread this message to its nearby globes.
             if Messages_Waiting then
                declare
---                    Distance : Real; -- distance between this ship and globe found
                   Incomming_Message : Inter_Vehicle_Messages;
+                  -- i know the declare-block is redundant, but in case for need.
+                  -- Incomming_Message is here to decide if the ship
+                  -- should update local message (and send it out).
                begin
                   Receive (Incomming_Message);
                   -- only updates info if the message is from new source, or
                   -- some ship's going to charge (Charging = True)
---                    if not (Incomming_Message.Source_ID = Vehicle_No)
---                      and then not (Incomming_Message.Forwarder_ID = Vehicle_No)
-                  if not (Incomming_Message.Forwarder_ID = Vehicle_No)
-                  then
-                     Recent_Messages := Incomming_Message;
---                       Report ("incomming new message. Source: " & Recent_Messages.Source_ID'Image);
-                  end if;
-
-                  -- spread incomming message to nearby ships:
-                  Send (Recent_Messages);
+                  Recent_Messages := Incomming_Message;
+                  Send (Recent_Messages); -- spread incomming message to nearby ships.
+--                    Report ("incomming new message. Source: " & Recent_Messages.Source_ID'Image);
                end;
             end if;
 
@@ -141,25 +158,45 @@ package body Vehicle_Task_Type is
 
             -- try to charge:
             if Current_Charge < 0.75 and then not Recent_Messages.Charging then
-               Update_Charging (True); -- tells other ships i'm going to charge.
-               Send (Recent_Messages);
+               Update_Charging (True);
+               Send (Recent_Messages); -- tells other ships i'm going to charge.
 
                Set_Destination (Recent_Messages.Globe_Loc);
                Set_Throttle (1.0); -- as faster as possible
-               Report ("charging!");
+--                 Report ("charging!");
             end if;
 
             -- after recharging, go back to orbit by using *local* globe info
             if Recent_Messages.Charging and then Current_Charge >= 0.75 then
-               Update_Charging (False); -- tells other ships I've finished charging.
+               Update_Charging (False);
 
                -- go back to orbit
                Orbiting (Throttle => 1.0,
                          Tick     => 100.0);
-               Report ("back to orbit.");
+--                 Report ("back to orbit.");
 
-               delay 0.2; -- wait until the ship is on orbit.
-               Send (Recent_Messages); -- !!! no guarantee to be received. !!!
+               -- wait a little while to allow this ship to go back to orbit,
+               -- so that message could be received by the ships on orbiting,
+               -- not only the ships near globe.
+--                 delay 0.1;
+--                 -- tells other ships I've finished charging.
+--                 Send (Recent_Messages); -- no guarantee to be received?
+--
+--                 delay 0.1;
+--                 -- sends message again to let more ships know I've finished charging.
+--                 Send (Recent_Messages); -- no guarantee to be received?
+
+               -- sends message without blocking Vehicle_Task.
+               -- this allows to have full control of the vehicle,
+               -- i.e. it can avoid the ship being off the orbit.
+               declare
+                  Message_Sender_Instance : constant Message_Sender_Pt := new Message_Sender;
+               begin
+                  Message_Sender_Instance.all.Async_Send (Incomming_Message_In => Recent_Messages,
+                                                          Send_Interval_In     => 0.1,
+                                                          Send_Count_In        => 3);
+               end;
+
             end if;
 
          end loop Outer_task_loop;
@@ -173,8 +210,4 @@ package body Vehicle_Task_Type is
 
 end Vehicle_Task_Type;
 
---              if abs (Recent_Messages.Globe_Loc - Position) > 0.4 then
---                 Report ("In control.");
---                 Set_Throttle (1.0);
---                 Set_Destination (Recent_Messages.Globe_Loc);
---              end if;
+--  Vectors_3D."abs" (Vector_1 - Vector_2) -- calculates distance between two Points_3D
