@@ -17,31 +17,39 @@ package body Vehicle_Task_Type is
 
       Vehicle_No : Positive;
 
-      Recent_Messages : Inter_Vehicle_Messages;
+      -- message passing
+      Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
-      Time : Real := 0.0; -- time for drawing circle
-      Radius : constant Real := 0.25; -- orbit radius
-      Orbit : Vector_3D;
 
-      -- helper function: get a element from array
-      -- grabs the first element in this array from the time being.
+      -- orbit parameters
+      Time : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
+      Radius : constant Real := 0.25; -- orbit radius
+      Orbit : Vector_3D; -- the orbit where ships fly along
+
+      -- helper function: gets a element from array
+      -- p.s. grabs the first element in this array from the time being,
+      -- it might be expanded when i have new good idea.
       function Grab_A_Globe (Globes : Energy_Globes) return Energy_Globe is (Globes (1));
+
+      -- helper function: checks if there's any globe nearby.
       function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is (Globes'Length > 0);
 
+      -- helper function: updates both charging variables.
       procedure Update_Charging (State : Boolean) is
       begin
          Local_Charging := State;
          Recent_Messages.Charging := State;
       end Update_Charging;
 
+      -- let the ship fly along a orbit!
       procedure Orbiting (Throttle : Real; Tick : Real) is
       begin
          Orbit := (Real_Elementary_Functions.Cos (Time),
                    Real_Elementary_Functions.Sin (Time),
                    0.0);
-         Orbit := Orbit * Radius; -- (cos(Time) + sin(Time)) * Radius
+         Orbit := Orbit * Radius; -- Orbit := (Radius * Cos (Time), R * Sin (Time), 0)
          Orbit := Orbit + Recent_Messages.Globe_Loc; -- sets orbiting origin
-         Orbit := Orbit + Recent_Messages.Globe_Vel; -- adds velocity to generate more roboust orbit
+         Orbit := Orbit + Recent_Messages.Globe_Vel; -- adds velocity to generate more roboust orbit track
          Time := Time + Pi / Tick; -- increment Time for next calculation
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
@@ -140,11 +148,13 @@ package body Vehicle_Task_Type is
                   -- should update local message (and send it out).
                begin
                   Receive (Incomming_Message);
+
                   -- only updates info if the message is from new source, or
                   -- some ship's going to charge (Charging = True)
                   Recent_Messages := Incomming_Message;
+
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
---                    Report ("incomming new message. Source: " & Recent_Messages.Source_ID'Image);
+--                    Report ("incomming new message. source: " & Recent_Messages.Source_ID'Image);
                end;
             end if;
 
@@ -187,7 +197,7 @@ package body Vehicle_Task_Type is
 --                 Send (Recent_Messages); -- no guarantee to be received?
 
                -- sends message without blocking Vehicle_Task.
-               -- this allows to have full control of the vehicle,
+               -- this allows to have full control of the vehicle almost all the time,
                -- i.e. it can avoid the ship being off the orbit.
                declare
                   Message_Sender_Instance : constant Message_Sender_Pt := new Message_Sender;
