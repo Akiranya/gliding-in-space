@@ -23,6 +23,7 @@ package body Vehicle_Task_Type is
 
       -- orbit parameters
       Time : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
+      Tick_Per_Update : constant Real := 100.0; -- orbiting speed. **greater means slower**
       Radius : constant Real := 0.25; -- orbit radius
       Orbit : Vector_3D; -- the orbit where ships fly along
 
@@ -162,7 +163,7 @@ package body Vehicle_Task_Type is
             -- let it orbit around the globe.
             if not Local_Charging
             then
-               Orbiting (0.5, 100.0);
+               Orbiting (0.5, Tick_Per_Update);
             end if;
 
             -- try to charge:
@@ -178,7 +179,7 @@ package body Vehicle_Task_Type is
             -- after recharging, go back to orbit by using *local* globe info
             if Recent_Messages.Charging and then Current_Charge >= 0.75 then
                Update_Charging (False);
-               Orbiting (1.0, 100.0); -- go back to orbit
+               Orbiting (1.0, Tick_Per_Update); -- go back to orbit
 --                 Report ("back to orbit.");
 
                -- wait a little while to allow this ship to go back to orbit,
