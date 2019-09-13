@@ -139,7 +139,7 @@ package body Vehicle_Task_Type is
 
             -- try to receive message:
             -- if this ship receives a message,
-            -- it should spread this message to its nearby globes.
+            -- it should then spread this message to its nearby ships.
             if Messages_Waiting then
                declare
                   Incomming_Message : Inter_Vehicle_Messages;
@@ -162,8 +162,7 @@ package body Vehicle_Task_Type is
             -- let it orbit around the globe.
             if not Local_Charging
             then
-               Orbiting (Throttle => 0.5,
-                         Tick     => 100.0);
+               Orbiting (0.5, 100.0);
             end if;
 
             -- try to charge:
@@ -179,10 +178,7 @@ package body Vehicle_Task_Type is
             -- after recharging, go back to orbit by using *local* globe info
             if Recent_Messages.Charging and then Current_Charge >= 0.75 then
                Update_Charging (False);
-
-               -- go back to orbit
-               Orbiting (Throttle => 1.0,
-                         Tick     => 100.0);
+               Orbiting (1.0, 100.0); -- go back to orbit
 --                 Report ("back to orbit.");
 
                -- wait a little while to allow this ship to go back to orbit,
