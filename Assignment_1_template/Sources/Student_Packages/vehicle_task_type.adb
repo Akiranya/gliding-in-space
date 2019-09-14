@@ -1,4 +1,4 @@
---  with Ada.Real_Time;              use Ada.Real_Time;
+with Ada.Real_Time;              use Ada.Real_Time;
 with Ada.Text_IO;                use Ada.Text_IO;
 with Exceptions;                 use Exceptions;
 with Real_Type;                  use Real_Type;
@@ -17,15 +17,25 @@ package body Vehicle_Task_Type is
 
       Vehicle_No : Positive;
 
-      -- message passing
+      ----------------
+      -- message passing:
+      ----------------
+
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
 
-      -- orbit parameters
+      ----------------
+      -- orbit parameters:
+      ----------------
+
       Time : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
       Tick_Per_Update : constant Real := 100.0; -- orbiting speed. **greater means slower**
       Radius : constant Real := 0.25; -- orbit radius
       Orbit : Vector_3D; -- the orbit where ships fly along
+
+      ----------------
+      -- funcs/procs:
+      ----------------
 
       -- helper function: gets a element from array
       -- p.s. grabs the first element in this array from the time being,
@@ -36,11 +46,11 @@ package body Vehicle_Task_Type is
       function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is (Globes'Length > 0);
 
       -- helper function: updates both charging variables.
-      procedure Update_Charging (State : Boolean) is
+      procedure Update_Charging_States (State : Boolean) is
       begin
          Local_Charging := State;
          Recent_Messages.Charging := State;
-      end Update_Charging;
+      end Update_Charging_States;
 
       -- let the ship fly along a orbit!
       procedure Orbiting (Throttle : Real; Tick : Real) is
@@ -60,6 +70,10 @@ package body Vehicle_Task_Type is
       begin
          Put_Line (Vehicle_No'Image & " " & Info);
       end Report;
+
+      ----------------
+      -- async sender task
+      ----------------
 
       task type Message_Sender is
          entry Async_Send (Incomming_Message_In : Inter_Vehicle_Messages;
@@ -122,7 +136,10 @@ package body Vehicle_Task_Type is
 
             -- Your vehicle should respond to the world here: sense, listen, talk, act?
 
-            -- send message if found the globe(s).
+            ----------------
+            -- send message if found the globe(s):
+            ----------------
+
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
@@ -138,7 +155,10 @@ package body Vehicle_Task_Type is
                end;
             end if;
 
+            ----------------
             -- try to receive message:
+            ----------------
+
             -- if this ship receives a message,
             -- it should then spread this message to its nearby ships.
             if Messages_Waiting then
@@ -146,18 +166,19 @@ package body Vehicle_Task_Type is
                   Incomming_Message : Inter_Vehicle_Messages;
                   -- i know the declare-block is redundant, but in case for need.
                   -- Incomming_Message is here to decide if the ship
-                  -- should update local message (and send it out).
+                  -- should update (partial) local message (and send it out).
                begin
                   Receive (Incomming_Message);
-
-                  -- only updates info if the message is from new source, or
-                  -- some ship's going to charge (Charging = True)
+                  -- TODO: calculates centroid of polygon by using all info got
                   Recent_Messages := Incomming_Message;
-
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
 --                    Report ("incomming new message. source: " & Recent_Messages.Source_ID'Image);
                end;
             end if;
+
+            ----------------
+            -- normal orbiting:
+            ----------------
 
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
@@ -166,9 +187,18 @@ package body Vehicle_Task_Type is
                Orbiting (0.5, Tick_Per_Update);
             end if;
 
+            -----------------
             -- try to charge:
+            -----------------
+
+            -- (not Recent_Messages.Charging) indicates that
+            -- this ship has not received any charging request yet,
+            -- which means that there won't be many of ships, nearby this ship,
+            -- also intending to charge.
+
+            -- that is, this avoid too many ships competing for globes.
             if Current_Charge < 0.75 and then not Recent_Messages.Charging then
-               Update_Charging (True);
+               Update_Charging_States (True);
                Send (Recent_Messages); -- tells other ships i'm going to charge.
 
                Set_Destination (Recent_Messages.Globe_Loc);
@@ -176,33 +206,21 @@ package body Vehicle_Task_Type is
 --                 Report ("charging!");
             end if;
 
-            -- after recharging, go back to orbit by using *local* globe info
-            if Recent_Messages.Charging and then Current_Charge >= 0.75 then
-               Update_Charging (False);
-               Orbiting (1.0, Tick_Per_Update); -- go back to orbit
+            -----------------
+            -- after recharging, go back to orbit:
+            -----------------
+
+            -- if the ship has finished charging ...
+
+            -- to figure out what conditions exactly represent 'finished charging',
+            -- we can use Current_Charge and Local_Charging flag.
+
+            -- if local charging flag is True, it means that this ship WAS going to charge,
+            -- and Current_Charge >= 0.75 means that it now resumes its spirits.
+            if Current_Charge >= 0.75 and then Local_Charging then
+               Update_Charging_States (False);
+               Orbiting (1.0, Tick_Per_Update); -- go back to orbit by using *local* globe info
 --                 Report ("back to orbit.");
-
-               -- wait a little while to allow this ship to go back to orbit,
-               -- so that message could be received by the ships on orbiting,
-               -- not only the ships near globe.
---                 delay 0.1;
---                 -- tells other ships I've finished charging.
---                 Send (Recent_Messages); -- no guarantee to be received?
---
---                 delay 0.1;
---                 -- sends message again to let more ships know I've finished charging.
---                 Send (Recent_Messages); -- no guarantee to be received?
-
-               -- sends message without blocking Vehicle_Task.
-               -- this allows to have full control of the vehicle almost all the time,
-               -- i.e. it can avoid the ship being off the orbit.
-               declare
-                  Message_Sender_Instance : constant Message_Sender_Pt := new Message_Sender;
-               begin
-                  Message_Sender_Instance.all.Async_Send (Incomming_Message_In => Recent_Messages,
-                                                          Send_Interval_In     => 0.1,
-                                                          Send_Count_In        => 3);
-               end;
 
             end if;
 
