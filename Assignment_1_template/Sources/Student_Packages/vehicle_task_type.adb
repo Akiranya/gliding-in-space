@@ -151,8 +151,7 @@ package body Vehicle_Task_Type is
 
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
-            if not Local_Charging
-            then
+            if not Local_Charging then
                Orbiting (0.5, Tick_Per_Update);
             end if;
 
@@ -172,7 +171,7 @@ package body Vehicle_Task_Type is
 
                Set_Destination (Recent_Messages.Globe_Loc);
                Set_Throttle (1.0); -- as faster as possible
---                 Report ("charging!");
+               Report ("charging!");
             end if;
 
             -----------------
@@ -189,7 +188,7 @@ package body Vehicle_Task_Type is
             if Current_Charge >= 0.75 and then Local_Charging then
                Update_Charging_States (False);
                Orbiting (1.0, Tick_Per_Update); -- go back to orbit by using *local* globe info
---                 Report ("back to orbit.");
+               Report ("back to orbit.");
 
             end if;
 
