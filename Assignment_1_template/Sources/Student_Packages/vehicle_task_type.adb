@@ -81,11 +81,9 @@ package body Vehicle_Task_Type is
       begin
          case Vehicle_Size is
             when 1 .. 64 => Orbiting (Throttle, 0.2);
-            when 65 .. 80 => Orbiting (Throttle, 0.25);
-            when 81 .. 96 => Orbiting (Throttle, 0.30);
-            when 97 .. 112 => Orbiting (Throttle, 0.35);
-            when 113 .. 128 => Orbiting (Throttle, 0.40);
-            when others => Orbiting (Throttle, 0.45);
+            when 65 .. 96 => Orbiting (Throttle, 0.3);
+            when 97 .. 128 => Orbiting (Throttle, 0.4);
+            when others => Orbiting (Throttle, Long_Float (Vehicle_Size) / 320.0); -- 64/320=0.2
          end case;
       end Smart_Orbiting;
 
@@ -132,6 +130,10 @@ package body Vehicle_Task_Type is
             Wait_For_Next_Physics_Update;
 
             -- Your vehicle should respond to the world here: sense, listen, talk, act?
+
+            if Vehicle_No > Target_No_of_Elements + 1 then
+               exit Outer_task_loop;
+            end if;
 
             ----------------
             -- send message if found the globe(s):
