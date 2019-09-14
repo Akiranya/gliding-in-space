@@ -29,7 +29,7 @@ package body Vehicle_Task_Type is
       ----------------
 
       Time : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
-      Tick_Per_Update : constant Real := 100.0; -- orbiting speed. **greater means slower**
+      Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
       Radius : constant Real := 0.25; -- orbit radius
       Orbit : Vector_3D; -- the orbit where ships fly along
 

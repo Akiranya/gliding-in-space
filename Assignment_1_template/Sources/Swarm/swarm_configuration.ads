@@ -16,12 +16,12 @@ pragma Elaborate_All (Swarm_Configurations);
 package Swarm_Configuration is
 
    -----------------------------------------------------------------------------
-   Configuration : Configurations := Random_Globes_In_Orbits;
+   Configuration : Configurations := Single_Globe_In_Orbit;
    -- valid Configurations are (Single_Globe_In_Orbit, Dual_Globes_In_Orbit, Dual_Globes_In_Orbit_Fast,
    --                           Random_Globes_In_Orbits, Globe_Grid_In_Centre, Globe_Grid_Drifting)
    -----------------------------------------------------------------------------
 
-   Initial_No_of_Elements : constant Positive  := 64;
+   Initial_No_of_Elements : constant Positive  := 128;
    Initial_Swarm_Position : constant Vector_3D := Zero_Vector_3D;
    Initual_Edge_Length    : constant Real      := 1.0;
 
