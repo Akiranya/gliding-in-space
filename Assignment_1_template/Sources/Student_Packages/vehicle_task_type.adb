@@ -1,7 +1,7 @@
 -- Suggestions for packages which might be useful:
 
 with Ada.Numerics;               use Ada.Numerics;
---  with Ada.Text_IO;                use Ada.Text_IO;
+with Ada.Text_IO;                use Ada.Text_IO;
 with Exceptions;                 use Exceptions;
 with Real_Type;                  use Real_Type;
 --  with Generic_Sliding_Statistics;
@@ -28,6 +28,11 @@ package body Vehicle_Task_Type is
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
       Locally_Known_No_Vehicle : Count_Type;
+
+--        type Energy_Globe_Index is mod 6;
+--        type Local_Energy_Globe_Arr_Type is array (Energy_Globe_Index) of Energy_Globe;
+--        Globe_Index : Energy_Globe_Index := 0;
+--        Local_Energy_Globes : Local_Energy_Globe_Arr_Type;
 
       package Vehicle_Sets is new Ada.Containers.Ordered_Sets
         (Element_Type => Positive);
@@ -60,7 +65,7 @@ package body Vehicle_Task_Type is
          Recent_Messages.Charging := State;
       end Update_Charging_States;
 
-      -- let the ship fly along a orbit!
+      -- let the ship fly along an orbit!
       -- p.s. info needed for calculating is Recent_Message which
       -- is the most recent message received by this ship.
       procedure Orbiting (Throttle : Real; Radius : Real) is
@@ -77,20 +82,65 @@ package body Vehicle_Task_Type is
          Set_Throttle (Throttle);
       end Orbiting;
 
-      procedure Smart_Orbiting (Throttle : Real; Vehicle_Size : Count_Type) is
-      begin
-         case Vehicle_Size is
-            when 1 .. 64 => Orbiting (Throttle, 0.2);
-            when 65 .. 96 => Orbiting (Throttle, 0.3);
-            when 97 .. 128 => Orbiting (Throttle, 0.4);
-            when others => Orbiting (Throttle, Long_Float (Vehicle_Size) / 320.0); -- 64/320=0.2
-         end case;
-      end Smart_Orbiting;
-
---        procedure Report (Info : String) is
+--        procedure Smart_Orbiting (Throttle : Real; Vehicle_Size : Count_Type) is
 --        begin
---           Put_Line (Vehicle_No'Image & " " & Info);
---        end Report;
+--           case Vehicle_Size is
+--              when 1 .. 64 => Orbiting (Throttle, 0.2);
+--              when 65 .. 96 => Orbiting (Throttle, 0.25);
+--              when 97 .. 128 => Orbiting (Throttle, 0.3);
+--              when others => Orbiting (Throttle, Long_Float (Vehicle_Size) / 320.0); -- 64/320=0.2
+--           end case;
+--        end Smart_Orbiting;
+
+      procedure Report (Info : String) is
+      begin
+         Put_Line (Vehicle_No'Image & " " & Info);
+      end Report;
+
+      procedure Receive_Helper is
+         Incomming_Message : Inter_Vehicle_Messages;
+--           Incomming_Globe : Energy_Globe;
+--           Local_Globe : Energy_Globe;
+--           Distance : Real;
+         Max_No_Vehicles : Count_Type;
+         -- Incomming_Message is here to decide if the ship
+         -- should update (partial) local rencent message (and send it out).
+      begin
+         Receive (Incomming_Message);
+
+         -- TODO: calculates centroid of polygon by using all info got
+
+         ----------------
+         -- distance between globes report:
+         ----------------
+
+--           Incomming_Globe := Incomming_Message.Globe;
+--           Distance := abs (Incomming_Globe.Position - Position);
+--           if Distance > 0.3 then -- if new globe is far from me
+--              Local_Energy_Globes (Globe_Index) := Incomming_Globe;
+--              Globe_Index := Energy_Globe_Index'Succ (Globe_Index); -- i++ss
+--           end if;
+
+         ----------------
+         -- calculates no. of vehicles:
+         ----------------
+
+         Known_Vehicles.Include (Incomming_Message.Forwarder_ID); -- *tries* to add vehicle
+         Locally_Known_No_Vehicle := Known_Vehicles.Length;
+         Max_No_Vehicles := Count_Type'Max (Incomming_Message.Known_No_Vehicle, Locally_Known_No_Vehicle);
+         Max_No_Vehicles := Count_Type'Max (Recent_Messages.Known_No_Vehicle, Max_No_Vehicles);
+         Recent_Messages := Incomming_Message; -- updates all local info
+         Recent_Messages.Known_No_Vehicle := Max_No_Vehicles; -- replaces it with longer length.
+         Recent_Messages.Forwarder_ID := Vehicle_No; -- sends this ship no. out.
+
+         ----------------
+         -- local energy globe info
+         ----------------
+
+--           if Positive (Max_No_Vehicles) > 64 then
+--              Report ("known no. of vehicles: " & Recent_Messages.Known_No_Vehicle'Image);
+--           end if;
+      end Receive_Helper;
 
    begin
 
@@ -113,6 +163,8 @@ package body Vehicle_Task_Type is
                              Known_No_Vehicle => 1);
       end Identify;
 
+      Report ("spawned.");
+
       -- Replace the rest of this task with your own code.
       -- Maybe synchronizing on an external event clock like "Wait_For_Next_Physics_Update",
       -- yet you can synchronize on e.g. the real-time clock as well.
@@ -130,10 +182,6 @@ package body Vehicle_Task_Type is
             Wait_For_Next_Physics_Update;
 
             -- Your vehicle should respond to the world here: sense, listen, talk, act?
-
-            if Vehicle_No > Target_No_of_Elements + 1 then
-               exit Outer_task_loop;
-            end if;
 
             ----------------
             -- send message if found the globe(s):
@@ -161,38 +209,9 @@ package body Vehicle_Task_Type is
             -- if this ship receives a message,
             -- it should then spread this message to its nearby ships.
             if Messages_Waiting then
-               declare
-                  Incomming_Message : Inter_Vehicle_Messages;
-                  Max_No_Vehicles : Count_Type;
-                  -- Incomming_Message is here to decide if the ship
-                  -- should update (partial) local rencent message (and send it out).
-               begin
-                  Receive (Incomming_Message);
-
-                  -- TODO: calculates centroid of polygon by using all info got
-
-                  ----------------
-                  -- calculates no. of vehicles:
-                  ----------------
-
-                  Known_Vehicles.Include (Incomming_Message.Forwarder_ID); -- *tries* to add vehicle
-                  Locally_Known_No_Vehicle := Known_Vehicles.Length;
-                  Max_No_Vehicles := Count_Type'Max (Incomming_Message.Known_No_Vehicle, Locally_Known_No_Vehicle);
-                  Max_No_Vehicles := Count_Type'Max (Recent_Messages.Known_No_Vehicle, Max_No_Vehicles);
-                  Recent_Messages := Incomming_Message; -- updates all local info
-                  Recent_Messages.Known_No_Vehicle := Max_No_Vehicles; -- replaces it with longer length.
-                  Recent_Messages.Forwarder_ID := Vehicle_No; -- sends this ship no. out.
---                    if Max_No_Vehicles > 48 then
---                       Report ("known no. of vehicles: " & Recent_Messages.Length'Image);
---                    end if;
-
-                  ----------------
-                  -- spreads message out:
-                  ----------------
-
-                  Send (Recent_Messages); -- spread incomming message to nearby ships.
---                    Report ("incomming new message. source: " & Recent_Messages.Source_ID'Image);
-               end;
+               Receive_Helper;
+               Send (Recent_Messages); -- spread incomming message to nearby ships.
+--                 Report ("incomming new message. source: " & Recent_Messages.Source_ID'Image);
             end if;
 
             ----------------
@@ -202,8 +221,8 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Smart_Orbiting (Throttle     => 0.5,
-                               Vehicle_Size => Locally_Known_No_Vehicle);
+               Orbiting (Throttle => 0.5,
+                         Radius   => 0.25);
             end if;
 
             -----------------
@@ -238,8 +257,8 @@ package body Vehicle_Task_Type is
             -- and Current_Charge >= 0.75 means that it now resumes its spirits.
             if Current_Charge >= 0.75 and then Local_Charging then
                Update_Charging_States (False);
-               Smart_Orbiting (Throttle     => 1.0,
-                               Vehicle_Size => Locally_Known_No_Vehicle); -- go back to orbit by using *local* globe info
+               Orbiting (Throttle => 1.0,
+                         Radius   => 0.25); -- go back to orbit by using *local* globe info
 --                 Report ("back to orbit.");
             end if;
 
