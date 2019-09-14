@@ -28,7 +28,7 @@ package body Vehicle_Task_Type is
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
 --        No_Charging : Count_Type := 0;
-      Locally_Known_No_Vehicle : Count_Type;
+--        Locally_Known_No_Vehicle : Count_Type;
 --        Forane_Globe : Energy_Globe;
 
       package Vehicle_Sets is new Ada.Containers.Ordered_Sets
@@ -187,8 +187,7 @@ package body Vehicle_Task_Type is
                   ----------------
 
                   Known_Vehicles.Include (Incomming_Message.Forwarder_ID); -- *tries* to add vehicle
-                  Locally_Known_No_Vehicle := Known_Vehicles.Length;
-                  Max_No_Vehicles := Count_Type'Max (Incomming_Message.Known_No_Vehicle, Locally_Known_No_Vehicle);
+                  Max_No_Vehicles := Count_Type'Max (Incomming_Message.Known_No_Vehicle, Known_Vehicles.Length);
                   Max_No_Vehicles := Count_Type'Max (Recent_Messages.Known_No_Vehicle, Max_No_Vehicles);
                   Recent_Messages := Incomming_Message; -- updates all local info
                   Recent_Messages.Known_No_Vehicle := Max_No_Vehicles; -- replaces it with longer length.
