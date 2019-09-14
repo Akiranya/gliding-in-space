@@ -71,37 +71,6 @@ package body Vehicle_Task_Type is
          Put_Line (Vehicle_No'Image & " " & Info);
       end Report;
 
-      ----------------
-      -- async sender task
-      ----------------
-
-      task type Message_Sender is
-         entry Async_Send (Incomming_Message_In : Inter_Vehicle_Messages;
-                           Send_Interval_In : Duration;
-                           Send_Count_In : Positive);
-      end Message_Sender;
-      type Message_Sender_Pt is access Message_Sender;
-      task body Message_Sender is
-         Incomming_Message : Inter_Vehicle_Messages;
-         Send_Interval : Duration;
-         Send_Count : Positive;
-      begin
---           Report ("sender task created.");
-         accept Async_Send (Incomming_Message_In : Inter_Vehicle_Messages;
-                            Send_Interval_In : Duration;
-                            Send_Count_In : Positive)
-         do
-            Incomming_Message := Incomming_Message_In;
-            Send_Interval := Send_Interval_In;
-            Send_Count := Send_Count_In;
-         end Async_Send;
-
-         for I in 1 .. Send_Count loop
-            Send (Incomming_Message);
-            delay Send_Interval;
-         end loop;
-      end Message_Sender;
-
    begin
 
       -- You need to react to this call and provide your task_id.
