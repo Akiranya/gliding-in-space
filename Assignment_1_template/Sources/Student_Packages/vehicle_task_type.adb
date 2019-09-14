@@ -29,8 +29,6 @@ package body Vehicle_Task_Type is
       ----------------
 
       Time : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
-      Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
-      Radius : constant Real := 0.25; -- orbit radius
       Orbit : Vector_3D; -- the orbit where ships fly along
 
       ----------------
@@ -55,15 +53,16 @@ package body Vehicle_Task_Type is
       -- let the ship fly along a orbit!
       -- p.s. info needed for calculating is Recent_Message which
       -- is the most recent message received by this ship.
-      procedure Orbiting (Throttle : Real; Tick : Real) is
+      procedure Orbiting (Throttle : Real; Radius : Real) is
+         Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
       begin
-         Orbit := (Real_Elementary_Functions.Cos (Time),
-                   Real_Elementary_Functions.Sin (Time),
-                   0.0);
+         Orbit := (x => Real_Elementary_Functions.Cos (Time),
+                   y => Real_Elementary_Functions.Sin (Time),
+                   z => 0.0);
          Orbit := Orbit * Radius; -- Orbit := (Radius * Cos (Time), R * Sin (Time), 0)
          Orbit := Orbit + Recent_Messages.Globe_Loc; -- sets orbiting origin
          Orbit := Orbit + Recent_Messages.Globe_Vel; -- adds velocity to generate more roboust orbit track
-         Time := Time + Pi / Tick; -- increment Time for next calculation
+         Time := Time + Pi / Tick_Per_Update; -- increment Time for next calculation
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
       end Orbiting;
@@ -154,7 +153,8 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Orbiting (0.5, Tick_Per_Update);
+               Orbiting (Throttle => 0.5,
+                         Radius   => 0.4);
             end if;
 
             -----------------
@@ -189,9 +189,9 @@ package body Vehicle_Task_Type is
             -- and Current_Charge >= 0.75 means that it now resumes its spirits.
             if Current_Charge >= 0.75 and then Local_Charging then
                Update_Charging_States (False);
-               Orbiting (1.0, Tick_Per_Update); -- go back to orbit by using *local* globe info
+               Orbiting (Throttle => 1.0,
+                         Radius   => 0.4);  -- go back to orbit by using *local* globe info
 --                 Report ("back to orbit.");
-
             end if;
 
          end loop Outer_task_loop;
