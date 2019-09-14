@@ -53,6 +53,8 @@ package body Vehicle_Task_Type is
       end Update_Charging_States;
 
       -- let the ship fly along a orbit!
+      -- p.s. info needed for calculating is Recent_Message which
+      -- is the most recent message received by this ship.
       procedure Orbiting (Throttle : Real; Tick : Real) is
       begin
          Orbit := (Real_Elementary_Functions.Cos (Time),
