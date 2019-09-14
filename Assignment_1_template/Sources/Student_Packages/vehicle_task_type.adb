@@ -27,7 +27,7 @@ package body Vehicle_Task_Type is
 
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
-      No_Charging : Count_Type := 0;
+--        No_Charging : Count_Type := 0;
       Locally_Known_No_Vehicle : Count_Type;
 --        Forane_Globe : Energy_Globe;
 
@@ -62,11 +62,11 @@ package body Vehicle_Task_Type is
          Recent_Messages.Charging := State;
       end Update_Charging_States;
 
-      -- let the ship fly along an orbit!
+      -- let the ship fly along an orbit! this helps message spread out!
       -- p.s. info needed for calculating is Recent_Message which
       -- is the most recent message received by this ship.
       procedure Orbiting (Throttle : Real; Radius : Real) is
-         Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
+         Tick_Per_Update : constant Real := 32.0; -- orbiting speed. **greater means slower**
       begin
          Orbit := (x => Real_Elementary_Functions.Cos (Time),
                    y => Real_Elementary_Functions.Sin (Time),
@@ -198,9 +198,9 @@ package body Vehicle_Task_Type is
                   -- local charging
                   ----------------
 
-                  if Recent_Messages.Charging then
-                     No_Charging := Count_Type'Succ (No_Charging); -- i++
-                  end if;
+--                    if Recent_Messages.Charging then
+--                       No_Charging := Count_Type'Succ (No_Charging); -- i++
+--                    end if;
 
 --                    if Positive (Max_No_Vehicles) > 64 then
 --                       Report ("known no. of vehicles: " & Recent_Messages.Known_No_Vehicle'Image);
@@ -216,7 +216,7 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Orbiting (Throttle => 0.50,
+               Orbiting (Throttle => 0.4,
                          Radius   => 0.25);
             end if;
 
@@ -230,22 +230,12 @@ package body Vehicle_Task_Type is
             -- also intending to charge.
 
             -- that is, this avoid too many ships competing for globes.
-            if Vehicle_No mod 2 = 0 then
-               if Current_Charge < 0.5 and then not Recent_Messages.Charging then
-                  Update_Charging_States (True);
-                  Send (Recent_Messages); -- tells other ships i'm going to charge.
-               -- TODO: go to different globe if too many charging nearby
-                  Set_Destination (Recent_Messages.Globe.Position);
-                  Set_Throttle (1.0); -- as faster as possible
-               end if;
-            else
-               if Current_Charge < 0.9 and then not Recent_Messages.Charging then
-                  Update_Charging_States (True);
-                  Send (Recent_Messages); -- tells other ships i'm going to charge.
+            if Current_Charge < 0.8 and then not Recent_Messages.Charging then
+               Update_Charging_States (True);
+               Send (Recent_Messages); -- tells other ships i'm going to charge.
                   -- TODO: go to different globe if too many charging nearby
-                  Set_Destination (Recent_Messages.Globe.Position);
-                  Set_Throttle (1.0); -- as faster as possible
-               end if;
+               Set_Destination (Recent_Messages.Globe.Position);
+               Set_Throttle (0.8);
             end if;
 
             -----------------
@@ -263,7 +253,7 @@ package body Vehicle_Task_Type is
                Update_Charging_States (False);
                Orbiting (Throttle => 1.0,
                          Radius   => 0.25); -- go back to orbit by using *local* globe info
-               No_Charging := Count_Type'First;
+--                 No_Charging := Count_Type'First;
             end if;
 
          end loop Outer_task_loop;
