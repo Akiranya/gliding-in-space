@@ -1,5 +1,7 @@
-with Ada.Numerics; use Ada.Numerics;
-with Ada.Text_IO;                use Ada.Text_IO;
+-- Suggestions for packages which might be useful:
+
+with Ada.Numerics;               use Ada.Numerics;
+--  with Ada.Text_IO;                use Ada.Text_IO;
 with Exceptions;                 use Exceptions;
 with Real_Type;                  use Real_Type;
 --  with Generic_Sliding_Statistics;
@@ -8,7 +10,9 @@ with Vectors_3D;                 use Vectors_3D;
 with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
 --  with Swarm_Structures;           use Swarm_Structures;
-with Swarm_Structures_Base; use Swarm_Structures_Base;
+with Swarm_Structures_Base;      use Swarm_Structures_Base;
+with Ada.Containers;             use Ada.Containers;
+with Ada.Containers.Ordered_Sets;
 --  with Real_Time_IO; use Real_Time_IO;
 
 package body Vehicle_Task_Type is
@@ -18,11 +22,17 @@ package body Vehicle_Task_Type is
       Vehicle_No : Positive;
 
       ----------------
-      -- message passing:
+      -- local storage:
       ----------------
 
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
+      Locally_Known_No_Vehicle : Count_Type;
+
+      package Vehicle_Sets is new Ada.Containers.Ordered_Sets
+        (Element_Type => Positive);
+      use Vehicle_Sets;
+      Known_Vehicles : Set;
 
       ----------------
       -- orbit parameters:
@@ -54,23 +64,35 @@ package body Vehicle_Task_Type is
       -- p.s. info needed for calculating is Recent_Message which
       -- is the most recent message received by this ship.
       procedure Orbiting (Throttle : Real; Radius : Real) is
-         Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
+         Tick_Per_Update : constant Real := 96.0; -- orbiting speed. **greater means slower**
       begin
          Orbit := (x => Real_Elementary_Functions.Cos (Time),
                    y => Real_Elementary_Functions.Sin (Time),
                    z => 0.0);
          Orbit := Orbit * Radius; -- Orbit := (Radius * Cos (Time), R * Sin (Time), 0)
-         Orbit := Orbit + Recent_Messages.Globe_Loc; -- sets orbiting origin
-         Orbit := Orbit + Recent_Messages.Globe_Vel; -- adds velocity to generate more roboust orbit track
+         Orbit := Orbit + Recent_Messages.Globe.Position; -- sets orbiting origin
+         Orbit := Orbit + Recent_Messages.Globe.Velocity; -- adds velocity to generate more roboust orbit track
          Time := Time + Pi / Tick_Per_Update; -- increment Time for next calculation
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
       end Orbiting;
 
-      procedure Report (Info : String) is
+      procedure Smart_Orbiting (Throttle : Real; Vehicle_Size : Count_Type) is
       begin
-         Put_Line (Vehicle_No'Image & " " & Info);
-      end Report;
+         case Vehicle_Size is
+            when 1 .. 64 => Orbiting (Throttle, 0.2);
+            when 65 .. 80 => Orbiting (Throttle, 0.25);
+            when 81 .. 96 => Orbiting (Throttle, 0.30);
+            when 97 .. 112 => Orbiting (Throttle, 0.35);
+            when 113 .. 128 => Orbiting (Throttle, 0.40);
+            when others => Orbiting (Throttle, 0.45);
+         end case;
+      end Smart_Orbiting;
+
+--        procedure Report (Info : String) is
+--        begin
+--           Put_Line (Vehicle_No'Image & " " & Info);
+--        end Report;
 
    begin
 
@@ -81,11 +103,16 @@ package body Vehicle_Task_Type is
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
          Vehicle_No     := Set_Vehicle_No;
          Local_Task_Id  := Current_Task;
+         Known_Vehicles.Insert (Vehicle_No); -- adds itself to set
+
+         ----------------
+         -- initializes:
+         ----------------
          Recent_Messages := (Source_ID => 999, -- non-existent no, as placeholder
                              Forwarder_ID => Vehicle_No,
-                             Globe_Loc => Zero_Vector_3D,
-                             Globe_Vel => Zero_Vector_3D,
-                             Charging => False);
+                             Globe => (Zero_Vector_3D, Zero_Vector_3D),
+                             Charging => False,
+                             Known_No_Vehicle => 1);
       end Identify;
 
       -- Replace the rest of this task with your own code.
@@ -115,9 +142,9 @@ package body Vehicle_Task_Type is
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
                   Lucky_Info : constant Inter_Vehicle_Messages := (Source_ID => Vehicle_No, -- to be used?
                                                                    Forwarder_ID => Vehicle_No,
-                                                                   Globe_Loc => Lucky_Globe.Position,
-                                                                   Globe_Vel => Lucky_Globe.Velocity,
-                                                                   Charging => False);
+                                                                   Globe => Lucky_Globe,
+                                                                   Charging => False,
+                                                                   Known_No_Vehicle => Recent_Messages.Known_No_Vehicle); -- don't update
                begin
                   Recent_Messages := Lucky_Info;
                   Send (Recent_Messages);
@@ -134,13 +161,33 @@ package body Vehicle_Task_Type is
             if Messages_Waiting then
                declare
                   Incomming_Message : Inter_Vehicle_Messages;
-                  -- i know the declare-block is redundant, but in case for need.
+                  Max_No_Vehicles : Count_Type;
                   -- Incomming_Message is here to decide if the ship
-                  -- should update (partial) local message (and send it out).
+                  -- should update (partial) local rencent message (and send it out).
                begin
                   Receive (Incomming_Message);
+
                   -- TODO: calculates centroid of polygon by using all info got
-                  Recent_Messages := Incomming_Message;
+
+                  ----------------
+                  -- calculates no. of vehicles:
+                  ----------------
+
+                  Known_Vehicles.Include (Incomming_Message.Forwarder_ID); -- *tries* to add vehicle
+                  Locally_Known_No_Vehicle := Known_Vehicles.Length;
+                  Max_No_Vehicles := Count_Type'Max (Incomming_Message.Known_No_Vehicle, Locally_Known_No_Vehicle);
+                  Max_No_Vehicles := Count_Type'Max (Recent_Messages.Known_No_Vehicle, Max_No_Vehicles);
+                  Recent_Messages := Incomming_Message; -- updates all local info
+                  Recent_Messages.Known_No_Vehicle := Max_No_Vehicles; -- replaces it with longer length.
+                  Recent_Messages.Forwarder_ID := Vehicle_No; -- sends this ship no. out.
+--                    if Max_No_Vehicles > 48 then
+--                       Report ("known no. of vehicles: " & Recent_Messages.Length'Image);
+--                    end if;
+
+                  ----------------
+                  -- spreads message out:
+                  ----------------
+
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
 --                    Report ("incomming new message. source: " & Recent_Messages.Source_ID'Image);
                end;
@@ -153,8 +200,8 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Orbiting (Throttle => 0.5,
-                         Radius   => 0.4);
+               Smart_Orbiting (Throttle     => 0.5,
+                               Vehicle_Size => Locally_Known_No_Vehicle);
             end if;
 
             -----------------
@@ -171,7 +218,7 @@ package body Vehicle_Task_Type is
                Update_Charging_States (True);
                Send (Recent_Messages); -- tells other ships i'm going to charge.
 
-               Set_Destination (Recent_Messages.Globe_Loc);
+               Set_Destination (Recent_Messages.Globe.Position);
                Set_Throttle (1.0); -- as faster as possible
 --                 Report ("charging!");
             end if;
@@ -189,8 +236,8 @@ package body Vehicle_Task_Type is
             -- and Current_Charge >= 0.75 means that it now resumes its spirits.
             if Current_Charge >= 0.75 and then Local_Charging then
                Update_Charging_States (False);
-               Orbiting (Throttle => 1.0,
-                         Radius   => 0.4);  -- go back to orbit by using *local* globe info
+               Smart_Orbiting (Throttle     => 1.0,
+                               Vehicle_Size => Locally_Known_No_Vehicle); -- go back to orbit by using *local* globe info
 --                 Report ("back to orbit.");
             end if;
 
@@ -205,4 +252,4 @@ package body Vehicle_Task_Type is
 
 end Vehicle_Task_Type;
 
---  Vectors_3D."abs" (Vector_1 - Vector_2) -- calculates distance between two Points_3D
+--  Vectors_3D."abs" (Point_1 - Point_2) -- calculates distance between two points
