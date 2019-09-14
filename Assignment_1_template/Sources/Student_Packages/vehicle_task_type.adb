@@ -1,4 +1,4 @@
-with Ada.Real_Time;              use Ada.Real_Time;
+with Ada.Numerics; use Ada.Numerics;
 with Ada.Text_IO;                use Ada.Text_IO;
 with Exceptions;                 use Exceptions;
 with Real_Type;                  use Real_Type;
@@ -9,7 +9,7 @@ with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
 --  with Swarm_Structures;           use Swarm_Structures;
 with Swarm_Structures_Base; use Swarm_Structures_Base;
-with Ada.Numerics; use Ada.Numerics;
+--  with Real_Time_IO; use Real_Time_IO;
 
 package body Vehicle_Task_Type is
 
