@@ -27,12 +27,8 @@ package body Vehicle_Task_Type is
 
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
---        No_Charging : Count_Type := 0;
---        Locally_Known_No_Vehicle : Count_Type;
---        Forane_Globe : Energy_Globe;
 
-      package Vehicle_Sets is new Ada.Containers.Ordered_Sets
-        (Element_Type => Positive);
+      package Vehicle_Sets is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
       use Vehicle_Sets;
       Known_Vehicles : Set;
 
@@ -78,16 +74,6 @@ package body Vehicle_Task_Type is
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
       end Orbiting;
-
---        procedure Smart_Orbiting (Throttle : Real; Vehicle_Size : Count_Type) is
---        begin
---           case Vehicle_Size is
---              when 1 .. 64 => Orbiting (Throttle, 0.2);
---              when 65 .. 96 => Orbiting (Throttle, 0.25);
---              when 97 .. 128 => Orbiting (Throttle, 0.3);
---              when others => Orbiting (Throttle, Long_Float (Vehicle_Size) / 320.0); -- 64/320=0.2
---           end case;
---        end Smart_Orbiting;
 
       procedure Report (Info : String) is
       begin
@@ -150,7 +136,6 @@ package body Vehicle_Task_Type is
                begin
                   Recent_Messages := Lucky_Info;
                   Send (Recent_Messages);
---                    Report ("globe nearby.");
                end;
             end if;
 
@@ -163,47 +148,16 @@ package body Vehicle_Task_Type is
             if Messages_Waiting then
                declare
                   Incomming_Message : Inter_Vehicle_Messages;
---                    Distance : Real;
-                  Max_No_Vehicles : Count_Type;
                   -- Incomming_Message is here to decide if the ship
                   -- should update (partial) local rencent message (and send it out).
                begin
                   Receive (Incomming_Message);
 
-                  -- TODO: calculates centroid of polygon by using all info got
+                  -- TODO: calculates no. of vehicles existent
 
-                  ----------------
-                  -- distance between globes & local globes info:
-                  ----------------
-
---                    Distance := abs (Incomming_Message.Globe.Position - Recent_Messages.Globe.Position);
---                    if Distance > 0.2 then -- if new globe is far from me
---                       Forane_Globe := Incomming_Message.Globe;
---  --              Report ("forane globe set.");
---                    end if;
-
-                  ----------------
-                  -- calculates no. of vehicles:
-                  ----------------
-
-                  Known_Vehicles.Include (Incomming_Message.Forwarder_ID); -- *tries* to add vehicle
-                  Max_No_Vehicles := Count_Type'Max (Incomming_Message.Known_No_Vehicle, Known_Vehicles.Length);
-                  Max_No_Vehicles := Count_Type'Max (Recent_Messages.Known_No_Vehicle, Max_No_Vehicles);
                   Recent_Messages := Incomming_Message; -- updates all local info
-                  Recent_Messages.Known_No_Vehicle := Max_No_Vehicles; -- replaces it with longer length.
                   Recent_Messages.Forwarder_ID := Vehicle_No; -- sends this ship no. out.
 
-                  ----------------
-                  -- local charging
-                  ----------------
-
---                    if Recent_Messages.Charging then
---                       No_Charging := Count_Type'Succ (No_Charging); -- i++
---                    end if;
-
---                    if Positive (Max_No_Vehicles) > 64 then
---                       Report ("known no. of vehicles: " & Recent_Messages.Known_No_Vehicle'Image);
---                    end if;
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
                end;
             end if;
@@ -215,7 +169,7 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Orbiting (Throttle => 0.4,
+               Orbiting (Throttle => 0.8,
                          Radius   => 0.25);
             end if;
 
@@ -243,7 +197,7 @@ package body Vehicle_Task_Type is
 
             -- if the ship has finished charging ...
 
-            -- to figure out what conditions exactly represent 'finished charging',
+            -- p.s. to figure out what conditions exactly represent 'finished charging',
             -- we can use Current_Charge and Local_Charging flag.
 
             -- if local charging flag is True, it means that this ship WAS going to charge,
@@ -252,7 +206,6 @@ package body Vehicle_Task_Type is
                Update_Charging_States (False);
                Orbiting (Throttle => 1.0,
                          Radius   => 0.25); -- go back to orbit by using *local* globe info
---                 No_Charging := Count_Type'First;
             end if;
 
          end loop Outer_task_loop;
