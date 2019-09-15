@@ -2,7 +2,6 @@
 
 --  with Ada.Real_Time;         use Ada.Real_Time;
 with Swarm_Structures_Base; use Swarm_Structures_Base;
-with Ada.Containers; use Ada.Containers;
 
 package Vehicle_Message_Type is
 
@@ -13,7 +12,6 @@ package Vehicle_Message_Type is
       Forwarder_ID : Positive; -- who sent the message
       Globe : Energy_Globe;
       Charging : Boolean; -- whether the sender is going to charge
-      Known_No_Vehicle : Count_Type; -- no. of vehicles found
    end record;
 
 end Vehicle_Message_Type;

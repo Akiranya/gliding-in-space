@@ -11,8 +11,6 @@ with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
 --  with Swarm_Structures;           use Swarm_Structures;
 with Swarm_Structures_Base;      use Swarm_Structures_Base;
-with Ada.Containers;             use Ada.Containers;
-with Ada.Containers.Ordered_Sets;
 --  with Real_Time_IO; use Real_Time_IO;
 
 package body Vehicle_Task_Type is
@@ -27,10 +25,6 @@ package body Vehicle_Task_Type is
 
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
-
-      package Vehicle_Sets is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
-      use Vehicle_Sets;
-      Known_Vehicles : Set;
 
       ----------------
       -- orbit parameters:
@@ -89,7 +83,6 @@ package body Vehicle_Task_Type is
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
          Vehicle_No     := Set_Vehicle_No;
          Local_Task_Id  := Current_Task;
-         Known_Vehicles.Insert (Vehicle_No); -- adds itself to set
 
          ----------------
          -- initializes:
@@ -97,8 +90,7 @@ package body Vehicle_Task_Type is
          Recent_Messages := (Source_ID => 999, -- non-existent no, as placeholder
                              Forwarder_ID => Vehicle_No,
                              Globe => (Zero_Vector_3D, Zero_Vector_3D),
-                             Charging => False,
-                             Known_No_Vehicle => 1);
+                             Charging => False);
       end Identify;
 
       Report ("spawned.");
@@ -131,8 +123,7 @@ package body Vehicle_Task_Type is
                   Lucky_Info : constant Inter_Vehicle_Messages := (Source_ID => Vehicle_No, -- to be used?
                                                                    Forwarder_ID => Vehicle_No,
                                                                    Globe => Lucky_Globe,
-                                                                   Charging => False,
-                                                                   Known_No_Vehicle => Recent_Messages.Known_No_Vehicle); -- don't update
+                                                                   Charging => False); -- don't update
                begin
                   Recent_Messages := Lucky_Info;
                   Send (Recent_Messages);
