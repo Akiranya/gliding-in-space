@@ -38,7 +38,7 @@ package body Vehicle_Task_Type is
       ----------------
 
       -- helper function: gets a element from array
-      -- p.s. grabs the first element in this array from the time being,
+      -- p.s. from the time being, just grabs the first element in this array,
       -- it might be expanded when i have new good idea.
       function Grab_A_Globe (Globes : Energy_Globes) return Energy_Globe is (Globes (1));
 
@@ -83,12 +83,10 @@ package body Vehicle_Task_Type is
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
          Vehicle_No     := Set_Vehicle_No;
          Local_Task_Id  := Current_Task;
-
          ----------------
          -- initializes:
          ----------------
-         Recent_Messages := (Source_ID => 999, -- non-existent no, as placeholder
-                             Forwarder_ID => Vehicle_No,
+         Recent_Messages := (Sender => Vehicle_No,
                              Globe => (Zero_Vector_3D, Zero_Vector_3D),
                              Charging => False);
       end Identify;
@@ -120,8 +118,7 @@ package body Vehicle_Task_Type is
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
-                  Lucky_Info : constant Inter_Vehicle_Messages := (Source_ID => Vehicle_No, -- to be used?
-                                                                   Forwarder_ID => Vehicle_No,
+                  Lucky_Info : constant Inter_Vehicle_Messages := (Sender => Vehicle_No, -- to be used?
                                                                    Globe => Lucky_Globe,
                                                                    Charging => False); -- don't update
                begin
@@ -147,7 +144,7 @@ package body Vehicle_Task_Type is
                   -- TODO: calculates no. of vehicles existent
 
                   Recent_Messages := Incomming_Message; -- updates all local info
-                  Recent_Messages.Forwarder_ID := Vehicle_No; -- sends this ship no. out.
+                  Recent_Messages.Sender := Vehicle_No; -- sends this ship no. out.
 
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
                end;
@@ -186,13 +183,11 @@ package body Vehicle_Task_Type is
             -- after recharging, go back to orbit:
             -----------------
 
-            -- if the ship has finished charging ...
-
             -- p.s. to figure out what conditions exactly represent 'finished charging',
             -- we can use Current_Charge and Local_Charging flag.
 
-            -- if local charging flag is True, it means that this ship WAS going to charge,
-            -- and Current_Charge >= 0.75 means that it now resumes its spirits.
+            -- if local charging flag is True, it means that this ship *was* going to charge,
+            -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
             if Current_Charge >= 0.75 and then Local_Charging then
                Update_Charging_States (False);
                Orbiting (Throttle => 1.0,
