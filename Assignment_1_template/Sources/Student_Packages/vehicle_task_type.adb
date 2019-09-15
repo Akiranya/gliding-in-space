@@ -160,7 +160,7 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Orbiting (Throttle => 0.8,
+               Orbiting (Throttle => 0.6,
                          Radius   => 0.25);
             end if;
 
@@ -179,7 +179,7 @@ package body Vehicle_Task_Type is
                Send (Recent_Messages); -- tells other ships i'm going to charge.
                   -- TODO: go to different globe if too many charging nearby
                Set_Destination (Recent_Messages.Globe.Position);
-               Set_Throttle (0.8);
+               Set_Throttle (1.0);
             end if;
 
             -----------------
