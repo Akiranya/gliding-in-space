@@ -53,8 +53,8 @@ package body Vehicle_Task_Type is
       end Update_Charging_States;
 
       -- let the ship fly along an orbit! this helps message spread out!
-      -- p.s. info needed for calculating is Recent_Message which
-      -- is the most recent message received by this ship.
+      -- p.s. info needed for calculating orbit is Recent_Message which
+      -- is the *most* recent message received by this ship.
       procedure Orbiting (Throttle : Real; Radius : Real) is
          Tick_Per_Update : constant Real := 32.0; -- orbiting speed. **greater means slower**
       begin
