@@ -73,7 +73,7 @@ package body Vehicle_Task_Type is
       -- is the *most* recent message received by this ship.
       procedure Orbiting (Throttle : Real; Radius : Real) is
          Tick_Per_Update_Slower : constant Real := 64.0;
-         Tick_Per_Update : constant Real := 32.0; -- orbiting speed. **greater means slower**
+         Tick_Per_Update : constant Real := 48.0; -- orbiting speed. **greater means slower**
       begin
          Orbit := (x => Real_Elementary_Functions.Cos (T),
                    y => Real_Elementary_Functions.Sin (T),
