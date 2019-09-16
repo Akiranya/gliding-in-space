@@ -61,10 +61,10 @@ package body Vehicle_Task_Type is
          Orbit := (x => Real_Elementary_Functions.Cos (Time),
                    y => Real_Elementary_Functions.Sin (Time),
                    z => 0.0);
-         Orbit := Orbit * Radius; -- Orbit := (Radius * Cos (Time), R * Sin (Time), 0)
-         Orbit := Orbit + Recent_Messages.Globe.Position; -- sets orbiting origin
-         Orbit := Orbit + Recent_Messages.Globe.Velocity; -- adds velocity to generate more roboust orbit track
-         Time := Time + Pi / Tick_Per_Update; -- increment Time for next calculation
+         Orbit := Orbit * Radius; -- a point on circle: (r*cos(t), r*sin(t), 0)
+         Orbit := Orbit + Recent_Messages.Globe.Position; -- sets orbiting origin.
+         Orbit := Orbit + Recent_Messages.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
+         Time := Time + Pi / Tick_Per_Update; -- increment t for next calculation.
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
       end Orbiting;
@@ -137,7 +137,7 @@ package body Vehicle_Task_Type is
 
                   -- TODO: calculates no. of vehicles existent
 
-                  Recent_Messages := Incomming_Message; -- updates all local info
+                  Recent_Messages := Incomming_Message; -- updates all local info.
                   Recent_Messages.Sender := Vehicle_No; -- sends this ship no. out.
 
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
@@ -165,10 +165,13 @@ package body Vehicle_Task_Type is
             -- also intending to charge.
 
             -- that is, this avoid too many ships competing for globes.
+
             if Current_Charge < 0.8 and then not Recent_Messages.Charging then
                Update_Charging_States (True);
                Send (Recent_Messages); -- tells other ships i'm going to charge.
-               -- TODO: go to different globe if too many charging nearby
+
+               -- TODO: go to different globe if too many charging nearby.
+
                Set_Destination (Recent_Messages.Globe.Position);
                Set_Throttle (1.0);
             end if;
@@ -182,10 +185,11 @@ package body Vehicle_Task_Type is
 
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
+
             if Current_Charge >= 0.75 and then Local_Charging then
                Update_Charging_States (False);
                Orbiting (Throttle => 1.0,
-                         Radius   => 0.25); -- go back to orbit by using *local* globe info
+                         Radius   => 0.25); -- go back to orbit by using *local* globe info.
             end if;
 
          end loop Outer_task_loop;
