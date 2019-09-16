@@ -118,11 +118,11 @@ package body Vehicle_Task_Type is
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
-                  Lucky_Info : constant Inter_Vehicle_Messages := (Sender => Vehicle_No, -- to be used?
-                                                                   Globe => Lucky_Globe,
-                                                                   Charging => False); -- don't update
+                  Incomming_Msg : constant Inter_Vehicle_Messages := (Sender => Vehicle_No, -- to be used?
+                                                                      Globe => Lucky_Globe,
+                                                                      Charging => False); -- don't update
                begin
-                  Recent_Messages := Lucky_Info;
+                  Recent_Messages := Incomming_Msg;
                   Send (Recent_Messages);
                end;
             end if;
@@ -157,7 +157,7 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Orbiting (Throttle => 0.6,
+               Orbiting (Throttle => 0.5,
                          Radius   => 0.25);
             end if;
 
@@ -174,7 +174,7 @@ package body Vehicle_Task_Type is
             if Current_Charge < 0.8 and then not Recent_Messages.Charging then
                Update_Charging_States (True);
                Send (Recent_Messages); -- tells other ships i'm going to charge.
-                  -- TODO: go to different globe if too many charging nearby
+               -- TODO: go to different globe if too many charging nearby
                Set_Destination (Recent_Messages.Globe.Position);
                Set_Throttle (1.0);
             end if;

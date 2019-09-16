@@ -21,7 +21,7 @@ package Swarm_Configuration is
    --                           Random_Globes_In_Orbits, Globe_Grid_In_Centre, Globe_Grid_Drifting)
    -----------------------------------------------------------------------------
 
-   Initial_No_of_Elements : constant Positive  := 64;
+   Initial_No_of_Elements : constant Positive  := 100;
    Initial_Swarm_Position : constant Vector_3D := Zero_Vector_3D;
    Initual_Edge_Length    : constant Real      := 1.0;
 
