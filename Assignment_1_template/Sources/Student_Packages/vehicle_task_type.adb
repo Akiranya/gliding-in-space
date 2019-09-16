@@ -11,7 +11,9 @@ with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
 --  with Swarm_Structures;           use Swarm_Structures;
 with Swarm_Structures_Base;      use Swarm_Structures_Base;
---  with Real_Time_IO; use Real_Time_IO;
+with Ada.Containers; use Ada.Containers;
+with Ada.Containers.Ordered_Sets;
+--  with Ada.Real_Time; use Ada.Real_Time;
 
 package body Vehicle_Task_Type is
 
@@ -25,12 +27,16 @@ package body Vehicle_Task_Type is
 
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
+      package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
+      use Vehicle_No_Set;
+      Known_Vehicles : Vehicle_No_Set.Set;
 
       ----------------
       -- orbit parameters:
       ----------------
 
-      Time : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
+      T : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
+      Multi_Globle : Boolean := False;
       Orbit : Vector_3D; -- the orbit where ships fly along
 
       ----------------
@@ -43,7 +49,17 @@ package body Vehicle_Task_Type is
       function Grab_A_Globe (Globes : Energy_Globes) return Energy_Globe is (Globes (1));
 
       -- helper function: checks if there's any globe nearby.
-      function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is (Globes'Length > 0);
+      function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is
+      begin
+         if Globes'Length > 1 then
+            Multi_Globle := True;
+            return True;
+         end if;
+         if Globes'Length > 0 then
+            return True;
+         end if;
+         return False;
+      end Has_Energy_Nearby;
 
       -- helper function: updates both charging variables.
       procedure Update_Charging_States (State : Boolean) is
@@ -56,15 +72,23 @@ package body Vehicle_Task_Type is
       -- p.s. info needed for calculating orbit is Recent_Message which
       -- is the *most* recent message received by this ship.
       procedure Orbiting (Throttle : Real; Radius : Real) is
+         Tick_Per_Update_Slower : constant Real := 64.0;
          Tick_Per_Update : constant Real := 32.0; -- orbiting speed. **greater means slower**
       begin
-         Orbit := (x => Real_Elementary_Functions.Cos (Time),
-                   y => Real_Elementary_Functions.Sin (Time),
+         Orbit := (x => Real_Elementary_Functions.Cos (T),
+                   y => Real_Elementary_Functions.Sin (T),
                    z => 0.0);
          Orbit := Orbit * Radius; -- a point on circle: (r*cos(t), r*sin(t), 0)
          Orbit := Orbit + Recent_Messages.Globe.Position; -- sets orbiting origin.
          Orbit := Orbit + Recent_Messages.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
-         Time := Time + Pi / Tick_Per_Update; -- increment t for next calculation.
+
+         -- dynamically adjusts orbit speed depending on no. of globes.
+         if Multi_Globle then
+            T := T + Pi / Tick_Per_Update_Slower; -- increment t for next calculation.
+         else
+            T := T + Pi / Tick_Per_Update;
+         end if;
+
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
       end Orbiting;
@@ -86,6 +110,10 @@ package body Vehicle_Task_Type is
       end Identify;
 
       Report ("spawned.");
+
+      -- Stage D
+      Known_Vehicles.Insert (Vehicle_No);
+      -- Stage D
 
       -- Replace the rest of this task with your own code.
       -- Maybe synchronizing on an external event clock like "Wait_For_Next_Physics_Update",
@@ -112,11 +140,11 @@ package body Vehicle_Task_Type is
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
-                  Incomming_Msg : constant Inter_Vehicle_Messages := (Sender => Vehicle_No, -- to be used?
-                                                                      Globe => Lucky_Globe,
-                                                                      Charging => False); -- don't update
+                  Outgoing_Msg : constant Inter_Vehicle_Messages := (Sender => Vehicle_No, -- to be used?
+                                                                     Globe => Lucky_Globe,
+                                                                     Charging => False);
                begin
-                  Recent_Messages := Incomming_Msg;
+                  Recent_Messages := Outgoing_Msg;
                   Send (Recent_Messages);
                end;
             end if;
@@ -129,17 +157,16 @@ package body Vehicle_Task_Type is
             -- it should then spread this message to its nearby ships.
             if Messages_Waiting then
                declare
-                  Incomming_Message : Inter_Vehicle_Messages;
+                  Incomming_Msg : Inter_Vehicle_Messages;
                   -- Incomming_Message is here to decide if the ship
                   -- should update (partial) local rencent message (and send it out).
                begin
-                  Receive (Incomming_Message);
+                  Receive (Incomming_Msg);
 
-                  -- TODO: calculates no. of vehicles existent
+                  -- TODO: decided whether to vanish itself
 
-                  Recent_Messages := Incomming_Message; -- updates all local info.
+                  Recent_Messages := Incomming_Msg; -- updates all local info.
                   Recent_Messages.Sender := Vehicle_No; -- sends this ship no. out.
-
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
                end;
             end if;
@@ -152,7 +179,7 @@ package body Vehicle_Task_Type is
             -- let it orbit around the globe.
             if not Local_Charging then
                Orbiting (Throttle => 0.5,
-                         Radius   => 0.25);
+                         Radius   => 0.4);
             end if;
 
             -----------------
@@ -189,7 +216,7 @@ package body Vehicle_Task_Type is
             if Current_Charge >= 0.75 and then Local_Charging then
                Update_Charging_States (False);
                Orbiting (Throttle => 1.0,
-                         Radius   => 0.25); -- go back to orbit by using *local* globe info.
+                         Radius   => 0.4); -- go back to orbit by using *local* globe info.
             end if;
 
          end loop Outer_task_loop;
