@@ -83,12 +83,6 @@ package body Vehicle_Task_Type is
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
          Vehicle_No     := Set_Vehicle_No;
          Local_Task_Id  := Current_Task;
-         ----------------
-         -- initializes:
-         ----------------
-         Recent_Messages := (Sender => Vehicle_No,
-                             Globe => (Zero_Vector_3D, Zero_Vector_3D),
-                             Charging => False);
       end Identify;
 
       Report ("spawned.");
