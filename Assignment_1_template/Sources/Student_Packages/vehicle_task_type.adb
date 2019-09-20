@@ -11,7 +11,9 @@ with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
 --  with Swarm_Structures;           use Swarm_Structures;
 with Swarm_Structures_Base;      use Swarm_Structures_Base;
---  with Ada.Real_Time; use Ada.Real_Time;
+with Ada.Real_Time; use Ada.Real_Time;
+with Ada.Containers; use Ada.Containers;
+with Ada.Containers.Ordered_Sets;
 
 package body Vehicle_Task_Type is
 
@@ -25,6 +27,11 @@ package body Vehicle_Task_Type is
 
       Recent_Messages : Inter_Vehicle_Messages; -- local message
       Local_Charging : Boolean := False;
+
+      package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
+      use Vehicle_No_Set;
+      Reserved_Vehicles : Vehicle_No_Set.Set;
+      Vanished_Vehicles : Vehicle_No_Set.Set;
 
       ----------------
       -- orbit parameters:
@@ -98,6 +105,7 @@ package body Vehicle_Task_Type is
       end Identify;
 
       Report ("spawned.");
+      Reserved_Vehicles.Insert (Vehicle_No); -- initializes the set
 
       -- Replace the rest of this task with your own code.
       -- Maybe synchronizing on an external event clock like "Wait_For_Next_Physics_Update",
@@ -124,8 +132,10 @@ package body Vehicle_Task_Type is
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
-                  Outgoing_Msg : constant Inter_Vehicle_Messages := (Globe => Lucky_Globe,
-                                                                     Charging => False);
+                  Outgoing_Msg : constant Inter_Vehicle_Messages := (Sender => Vehicle_No,
+                                                                     Globe => Lucky_Globe,
+                                                                     Charging => False,
+                                                                     Timestamp => Clock);
                begin
                   Recent_Messages := Outgoing_Msg;
                   Send (Recent_Messages);
@@ -148,7 +158,15 @@ package body Vehicle_Task_Type is
 
                   -- TODO: decided whether to vanish itself
 
-                  Recent_Messages := Incomming_Msg; -- updates all local info.
+                  Recent_Messages := Incomming_Msg; -- replaces all local messages with incomming messages
+                  Recent_Messages.Sender := Vehicle_No; -- attach this Vehicle_No to outgoing messages
+
+                  if Reserved_Vehicles.Length < 42 then
+                     Reserved_Vehicles.Include (Incomming_Msg.Sender);
+                  else
+                     Recent_Messages.Timestamp := Clock; -- marks timestamp
+                  end if;
+
                   Send (Recent_Messages); -- spread incomming message to nearby ships.
                end;
             end if;
