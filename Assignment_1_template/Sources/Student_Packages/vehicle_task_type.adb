@@ -175,7 +175,7 @@ package body Vehicle_Task_Type is
 
             -- that is, this avoid too many ships competing for globes.
 
-            if Current_Charge < Full_Charge * 0.8 and then not Recent_Messages.Charging then
+            if Current_Charge < Full_Charge * 0.75 and then not Recent_Messages.Charging then
                Recent_Messages.Charging := True;
                Local_Charging := True;
                Send (Recent_Messages); -- tells other ships i'm going to charge.
@@ -196,7 +196,7 @@ package body Vehicle_Task_Type is
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
 
-            if Current_Charge >= Full_Charge * 0.99 and then Local_Charging then
+            if Current_Charge >= Full_Charge * 0.9 and then Local_Charging then
                Recent_Messages.Charging := False;
                Local_Charging := False;
                Orbiting (Throttle => Full_Throttle,
