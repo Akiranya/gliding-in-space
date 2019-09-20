@@ -35,7 +35,7 @@ package body Vehicle_Task_Type is
       Multi_Globle : Boolean := False;
 
       ----------------
-      -- funcs/procs:
+      -- helper funcs/procs:
       ----------------
 
       -- helper function: gets a element from array
@@ -55,13 +55,6 @@ package body Vehicle_Task_Type is
          end if;
          return False;
       end Has_Energy_Nearby;
-
-      -- helper function: updates both charging variables.
-      procedure Update_Charging_States (State : Boolean) is
-      begin
-         Local_Charging := State;
-         Recent_Messages.Charging := State;
-      end Update_Charging_States;
 
       -- let the ship fly along an orbit! this helps message spread out!
       -- p.s. info needed for calculating orbit is Recent_Message which
@@ -167,7 +160,7 @@ package body Vehicle_Task_Type is
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
             if not Local_Charging then
-               Orbiting (Throttle => 0.5,
+               Orbiting (Throttle => Full_Throttle * 0.5,
                          Radius   => 0.4);
             end if;
 
@@ -182,14 +175,15 @@ package body Vehicle_Task_Type is
 
             -- that is, this avoid too many ships competing for globes.
 
-            if Current_Charge < 0.8 and then not Recent_Messages.Charging then
-               Update_Charging_States (True);
+            if Current_Charge < Full_Charge * 0.8 and then not Recent_Messages.Charging then
+               Recent_Messages.Charging := True;
+               Local_Charging := True;
                Send (Recent_Messages); -- tells other ships i'm going to charge.
 
                -- TODO: go to different globe if too many charging nearby.
 
                Set_Destination (Recent_Messages.Globe.Position);
-               Set_Throttle (1.0);
+               Set_Throttle (Full_Throttle);
             end if;
 
             -----------------
@@ -202,9 +196,10 @@ package body Vehicle_Task_Type is
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
 
-            if Current_Charge >= 0.75 and then Local_Charging then
-               Update_Charging_States (False);
-               Orbiting (Throttle => 1.0,
+            if Current_Charge >= Full_Charge * 0.99 and then Local_Charging then
+               Recent_Messages.Charging := False;
+               Local_Charging := False;
+               Orbiting (Throttle => Full_Throttle,
                          Radius   => 0.4); -- go back to orbit by using *local* globe info.
             end if;
 
