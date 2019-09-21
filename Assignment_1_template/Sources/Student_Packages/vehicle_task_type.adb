@@ -31,7 +31,6 @@ package body Vehicle_Task_Type is
       package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
       use Vehicle_No_Set;
       Reserved_Vehicles : Vehicle_No_Set.Set;
-      Vanished_Vehicles : Vehicle_No_Set.Set;
 
       Reserved_Vehicles_Length : Count_Type;
       Has_Expanded_Radius : Boolean := True; -- for optimization ...
@@ -149,12 +148,6 @@ package body Vehicle_Task_Type is
                   Reserved_Vehicles_Length := Reserved_Vehicles.Length;
                   if Reserved_Vehicles_Length < Count_Type (Target_No_of_Elements) then
                      Reserved_Vehicles.Include (Last_Msg.Sender);
-                  else
-                     -- once Reserved_Vehicles has got enough no. of vehicles,
-                     -- accumulates the vehicles which will be asked to vanished.
-                     if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
-                        Vanished_Vehicles.Include (Last_Msg.Sender);
-                     end if;
                   end if;
 
 --                    Report ("agrees on the leader:" & Last_Msg.Leader'Image);
@@ -164,17 +157,15 @@ package body Vehicle_Task_Type is
                   --------------------------------
 
                   -- fact: the ship which first finds the globe is the leader!
-                  if Vanished_Vehicles.Length > 0 and then Last_Msg.Leader = Vehicle_No
+                  if Reserved_Vehicles_Length >= Count_Type (Target_No_of_Elements)
+                    and then Last_Msg.Leader = Vehicle_No
                   then
                      -- TODO: coordinate other vehicles to vanish.
-                     declare
-                        Lucky_Ship : constant Positive := Vanished_Vehicles.First_Element;
-                     begin
-                        Vanished_Vehicles.Exclude (Lucky_Ship);
-                        Last_Msg.Target_Vanished := Lucky_Ship;
+                     if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
+                        Last_Msg.Target_Vanished := Last_Msg.Sender;
 
-                        Report ("destruction target:" & Lucky_Ship'Image);
-                     end;
+                        Report ("destruction target:" & Last_Msg.Sender'Image);
+                     end if;
                   end if;
 
                   Last_Msg.Sender := Vehicle_No; -- attach this Vehicle_No to outgoing messages
