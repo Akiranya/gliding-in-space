@@ -11,8 +11,8 @@ package Vehicle_Message_Type is
       Sender : Positive; -- who sent the message
       Globe : Energy_Globe;
       Charging : Boolean; -- whether the sender is going to charge
-      Commander : Positive;
-      Target_Vanished : Positive;
+      Commander : Positive; -- the ship which guides all other vehicles to vanish
+      Target_Vanished : Positive; -- who is asked to vanish
    end record;
 
 end Vehicle_Message_Type;
