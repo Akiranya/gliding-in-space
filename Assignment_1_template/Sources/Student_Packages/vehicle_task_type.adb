@@ -26,12 +26,7 @@ package body Vehicle_Task_Type is
       ----------------
 
       Last_Msg : Inter_Vehicle_Messages;
-
-      type Local_Vehicle_Messages is record
-         Charging : Boolean;
-         Commander : Positive;
-      end record;
-      Local_Msg : Local_Vehicle_Messages;
+      Local_Charging : Boolean := False;
 
       package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
       use Vehicle_No_Set;
@@ -87,15 +82,12 @@ package body Vehicle_Task_Type is
          Local_Task_Id  := Current_Task;
 
          -- initializes Local_Msg & Last_Msg to avoid 'read-before-write' exception
-         Local_Msg := (Charging => False, -- whether this ship is charging.
-                       Commander => Vehicle_No); -- every ship thinks itself is commander.
-
          Last_Msg := (Sender => Vehicle_No,
                       Globe => (Position => Zero_Vector_3D,
                                 Velocity => Zero_Vector_3D),
                       -- following three variables just copy Local_Msg
-                      Charging => Local_Msg.Charging,
-                      Commander => Local_Msg.Commander,
+                      Charging => False,
+                      Commander => Vehicle_No,
                       Target_Vanished => Positive'Last); -- Positive'Last is a 'null value'
       end Identify;
 
@@ -194,7 +186,7 @@ package body Vehicle_Task_Type is
 
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
-            if not Local_Msg.Charging then
+            if not Local_Charging then
                Orbiting (Throttle => Full_Throttle * 0.5,
                          Radius   => 0.4);
             end if;
@@ -212,7 +204,7 @@ package body Vehicle_Task_Type is
 
             if Current_Charge < Full_Charge * 0.75 and then not Last_Msg.Charging then
                Last_Msg.Charging := True;
-               Local_Msg.Charging := True;
+               Local_Charging := True;
                Send (Last_Msg); -- tells other ships i'm going to charge.
 
                -- TODO: go to different globe if too many charging nearby.
@@ -231,9 +223,9 @@ package body Vehicle_Task_Type is
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
 
-            if Current_Charge >= Full_Charge * 0.9 and then Local_Msg.Charging then
+            if Current_Charge >= Full_Charge * 0.9 and then Local_Charging then
                Last_Msg.Charging := False;
-               Local_Msg.Charging := False;
+               Local_Charging := False;
                Orbiting (Throttle => Full_Throttle,
                          Radius   => 0.4); -- go back to orbit by using *local* globe info.
             end if;
