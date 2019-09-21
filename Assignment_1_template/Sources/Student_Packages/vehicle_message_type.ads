@@ -1,6 +1,6 @@
 -- Suggestions for packages which might be useful:
 
-with Ada.Real_Time;         use Ada.Real_Time;
+--  with Ada.Real_Time;         use Ada.Real_Time;
 with Swarm_Structures_Base; use Swarm_Structures_Base;
 
 package Vehicle_Message_Type is
@@ -11,7 +11,8 @@ package Vehicle_Message_Type is
       Sender : Positive; -- who sent the message
       Globe : Energy_Globe;
       Charging : Boolean; -- whether the sender is going to charge
-      Timestamp : Time;
+      Commander : Positive;
+      Target_Vanished : Positive;
    end record;
 
 end Vehicle_Message_Type;

@@ -11,7 +11,7 @@ with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
 --  with Swarm_Structures;           use Swarm_Structures;
 with Swarm_Structures_Base;      use Swarm_Structures_Base;
-with Ada.Real_Time; use Ada.Real_Time;
+--  with Ada.Real_Time; use Ada.Real_Time;
 with Ada.Containers; use Ada.Containers;
 with Ada.Containers.Ordered_Sets;
 
@@ -25,8 +25,13 @@ package body Vehicle_Task_Type is
       -- local storage:
       ----------------
 
-      Recent_Messages : Inter_Vehicle_Messages; -- local message
-      Local_Charging : Boolean := False;
+      Last_Msg : Inter_Vehicle_Messages;
+
+      type Local_Vehicle_Messages is record
+         Charging : Boolean;
+         Commander : Positive;
+      end record;
+      Local_Msg : Local_Vehicle_Messages;
 
       package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
       use Vehicle_No_Set;
@@ -39,50 +44,33 @@ package body Vehicle_Task_Type is
 
       T : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
       Orbit : Vector_3D; -- the orbit where ships fly along
-      Multi_Globle : Boolean := False;
 
       ----------------
       -- helper funcs/procs:
       ----------------
 
-      -- helper function: gets a element from array
+      -- overview: gets a element from array
       -- p.s. from the time being, just grabs the first element in this array,
       -- it might be expanded when i have new good idea.
       function Grab_A_Globe (Globes : Energy_Globes) return Energy_Globe is (Globes (1));
 
-      -- helper function: checks if there's any globe nearby.
-      function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is
-      begin
-         if Globes'Length > 1 then
-            Multi_Globle := True;
-            return True;
-         end if;
-         if Globes'Length > 0 then
-            return True;
-         end if;
-         return False;
-      end Has_Energy_Nearby;
+      -- overview: checks if there's any globe nearby.
+      function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is (Globes'Length > 0);
 
-      -- let the ship fly along an orbit! this helps message spread out!
+      -- overview: let the ship fly along an orbit! this helps message spread out!
       -- p.s. info needed for calculating orbit is Recent_Message which
       -- is the *most* recent message received by this ship.
       procedure Orbiting (Throttle : Real; Radius : Real) is
-         Tick_Per_Update_Slower : constant Real := 64.0;
-         Tick_Per_Update : constant Real := 48.0; -- orbiting speed. **greater means slower**
+         Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
       begin
          Orbit := (x => Real_Elementary_Functions.Cos (T),
                    y => Real_Elementary_Functions.Sin (T),
                    z => 0.0);
          Orbit := Orbit * Radius; -- a point on circle: (r*cos(t), r*sin(t), 0)
-         Orbit := Orbit + Recent_Messages.Globe.Position; -- sets orbiting origin.
-         Orbit := Orbit + Recent_Messages.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
+         Orbit := Orbit + Last_Msg.Globe.Position; -- sets orbiting origin.
+         Orbit := Orbit + Last_Msg.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
 
-         -- dynamically adjusts orbit speed depending on no. of globes.
-         if Multi_Globle then
-            T := T + Pi / Tick_Per_Update_Slower; -- increment t for next calculation.
-         else
-            T := T + Pi / Tick_Per_Update;
-         end if;
+         T := T + Pi / Tick_Per_Update;
 
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
@@ -94,24 +82,24 @@ package body Vehicle_Task_Type is
       end Report;
 
    begin
-
-      -- You need to react to this call and provide your task_id.
-      -- You can e.g. employ the assigned vehicle number (Vehicle_No)
-      -- in communications with other vehicles.
-
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
          Vehicle_No     := Set_Vehicle_No;
          Local_Task_Id  := Current_Task;
+
+         -- initializes Local_Msg & Last_Msg to avoid 'read-before-write' exception
+         Local_Msg := (Charging => False, -- whether this ship is charging.
+                       Commander => Vehicle_No); -- every ship thinks itself is commander.
+
+         Last_Msg := (Sender => Vehicle_No,
+                      Globe => (Position => Zero_Vector_3D,
+                                Velocity => Zero_Vector_3D),
+                      -- following three variables just copy Local_Msg
+                      Charging => Local_Msg.Charging,
+                      Commander => Local_Msg.Commander,
+                      Target_Vanished => Positive'Last); -- Positive'Last is a 'null value'
       end Identify;
 
-      Report ("spawned.");
       Reserved_Vehicles.Insert (Vehicle_No); -- initializes the set
-
-      -- Replace the rest of this task with your own code.
-      -- Maybe synchronizing on an external event clock like "Wait_For_Next_Physics_Update",
-      -- yet you can synchronize on e.g. the real-time clock as well.
-
-      -- Without control this vehicle will go for its natural swarming
 
       select
 
@@ -123,8 +111,6 @@ package body Vehicle_Task_Type is
 
             Wait_For_Next_Physics_Update;
 
-            -- Your vehicle should respond to the world here: sense, listen, talk, act?
-
             ----------------
             -- send message if found the globe(s):
             ----------------
@@ -135,10 +121,11 @@ package body Vehicle_Task_Type is
                   Outgoing_Msg : constant Inter_Vehicle_Messages := (Sender => Vehicle_No,
                                                                      Globe => Lucky_Globe,
                                                                      Charging => False,
-                                                                     Timestamp => Clock);
+                                                                     Commander => Last_Msg.Commander,
+                                                                     Target_Vanished => Last_Msg.Target_Vanished);
                begin
-                  Recent_Messages := Outgoing_Msg;
-                  Send (Recent_Messages);
+                  Last_Msg := Outgoing_Msg;
+                  Send (Last_Msg);
                end;
             end if;
 
@@ -148,6 +135,7 @@ package body Vehicle_Task_Type is
 
             -- if this ship receives a message,
             -- it should then spread this message to its nearby ships.
+
             if Messages_Waiting then
                declare
                   Incomming_Msg : Inter_Vehicle_Messages;
@@ -158,17 +146,46 @@ package body Vehicle_Task_Type is
 
                   -- TODO: decided whether to vanish itself
 
-                  Recent_Messages := Incomming_Msg; -- replaces all local messages with incomming messages
-                  Recent_Messages.Sender := Vehicle_No; -- attach this Vehicle_No to outgoing messages
+                  Last_Msg := Incomming_Msg; -- replaces all local messages with incomming messages
 
-                  if Reserved_Vehicles.Length < 42 then
-                     Reserved_Vehicles.Include (Incomming_Msg.Sender);
+                  -- accumulates reserved ships until Target_No_of_Elements
+                  if Reserved_Vehicles.Length < Count_Type (Target_No_of_Elements) then
+                     Reserved_Vehicles.Include (Last_Msg.Sender);
                   else
-                     Recent_Messages.Timestamp := Clock; -- marks timestamp
+                     -- accumulates the vehicles which will be asked to vanished.
+                     if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
+                        Vanished_Vehicles.Include (Last_Msg.Sender);
+                     end if;
                   end if;
 
-                  Send (Recent_Messages); -- spread incomming message to nearby ships.
+--                    Report ("agrees on:" & Last_Msg.Commander'Image);
+
+                  ----------------
+                  -- TODO: select the commander & kill ships
+                  ----------------
+
+                  -- fact: the ship which first finds the globe is the commander!
+                  if Vanished_Vehicles.Length > 0 and then Last_Msg.Commander = Vehicle_No
+                  then
+                     -- TODO: coordinate other vehicles to vanish.
+                     declare
+                        Lucky_Ship : constant Positive := Vanished_Vehicles.First_Element;
+                     begin
+                        Vanished_Vehicles.Exclude (Lucky_Ship);
+                        Last_Msg.Target_Vanished := Lucky_Ship;
+
+                        Report ("destruction starts:" & Lucky_Ship'Image);
+                     end;
+                  end if;
+
+                  Last_Msg.Sender := Vehicle_No; -- attach this Vehicle_No to outgoing messages
+                  Send (Last_Msg); -- spreads *modified* incomming messages to nearby ships.
                end;
+            end if;
+
+            if Vehicle_No = Last_Msg.Target_Vanished then
+               Report ("vanished.");
+               exit Outer_task_loop;
             end if;
 
             ----------------
@@ -177,7 +194,7 @@ package body Vehicle_Task_Type is
 
             -- if this ship is not going to charge, then
             -- let it orbit around the globe.
-            if not Local_Charging then
+            if not Local_Msg.Charging then
                Orbiting (Throttle => Full_Throttle * 0.5,
                          Radius   => 0.4);
             end if;
@@ -193,14 +210,14 @@ package body Vehicle_Task_Type is
 
             -- that is, this avoid too many ships competing for globes.
 
-            if Current_Charge < Full_Charge * 0.75 and then not Recent_Messages.Charging then
-               Recent_Messages.Charging := True;
-               Local_Charging := True;
-               Send (Recent_Messages); -- tells other ships i'm going to charge.
+            if Current_Charge < Full_Charge * 0.75 and then not Last_Msg.Charging then
+               Last_Msg.Charging := True;
+               Local_Msg.Charging := True;
+               Send (Last_Msg); -- tells other ships i'm going to charge.
 
                -- TODO: go to different globe if too many charging nearby.
 
-               Set_Destination (Recent_Messages.Globe.Position);
+               Set_Destination (Last_Msg.Globe.Position);
                Set_Throttle (Full_Throttle);
             end if;
 
@@ -214,9 +231,9 @@ package body Vehicle_Task_Type is
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
 
-            if Current_Charge >= Full_Charge * 0.9 and then Local_Charging then
-               Recent_Messages.Charging := False;
-               Local_Charging := False;
+            if Current_Charge >= Full_Charge * 0.9 and then Local_Msg.Charging then
+               Last_Msg.Charging := False;
+               Local_Msg.Charging := False;
                Orbiting (Throttle => Full_Throttle,
                          Radius   => 0.4); -- go back to orbit by using *local* globe info.
             end if;
