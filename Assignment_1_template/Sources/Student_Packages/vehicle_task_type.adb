@@ -85,9 +85,8 @@ package body Vehicle_Task_Type is
          Last_Msg := (Sender => Vehicle_No,
                       Globe => (Position => Zero_Vector_3D,
                                 Velocity => Zero_Vector_3D),
-                      -- following three variables just copy Local_Msg
                       Charging => False,
-                      Commander => Vehicle_No,
+                      Commander => Vehicle_No, -- at the beginning, every vehicle think itself is commander
                       Target_Vanished => Positive'Last); -- Positive'Last is a 'null value'
       end Identify;
 
@@ -136,21 +135,20 @@ package body Vehicle_Task_Type is
                begin
                   Receive (Incomming_Msg);
 
-                  -- TODO: decided whether to vanish itself
-
                   Last_Msg := Incomming_Msg; -- replaces all local messages with incomming messages
 
                   -- accumulates reserved ships until Target_No_of_Elements
                   if Reserved_Vehicles.Length < Count_Type (Target_No_of_Elements) then
                      Reserved_Vehicles.Include (Last_Msg.Sender);
                   else
+                     -- once Reserved_Vehicles has got enough no. of vehicles,
                      -- accumulates the vehicles which will be asked to vanished.
                      if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
                         Vanished_Vehicles.Include (Last_Msg.Sender);
                      end if;
                   end if;
 
---                    Report ("agrees on:" & Last_Msg.Commander'Image);
+--                    Report ("agrees on the commander:" & Last_Msg.Commander'Image);
 
                   ----------------
                   -- TODO: select the commander & kill ships
@@ -166,7 +164,7 @@ package body Vehicle_Task_Type is
                         Vanished_Vehicles.Exclude (Lucky_Ship);
                         Last_Msg.Target_Vanished := Lucky_Ship;
 
-                        Report ("destruction starts:" & Lucky_Ship'Image);
+                        Report ("destruction target:" & Lucky_Ship'Image);
                      end;
                   end if;
 
@@ -174,6 +172,10 @@ package body Vehicle_Task_Type is
                   Send (Last_Msg); -- spreads *modified* incomming messages to nearby ships.
                end;
             end if;
+
+            ----------------
+            -- decided whether to vanish itself:
+            ----------------
 
             if Vehicle_No = Last_Msg.Target_Vanished then
                Report ("vanished.");
