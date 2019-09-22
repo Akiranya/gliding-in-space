@@ -28,7 +28,7 @@ package body Vehicle_Task_Type is
       Last_Msg : Inter_Vehicle_Messages;
       Local_Charging : Boolean := False;
 
-      package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Positive);
+      package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Swarm_Element_Index);
       use Vehicle_No_Set;
       Reserved_Vehicles : Vehicle_No_Set.Set;
 
@@ -57,7 +57,7 @@ package body Vehicle_Task_Type is
       -- overview: let the ship fly along an orbit! this helps message spread out!
       -- p.s. info needed for calculating orbit is Last_Msg which
       -- is the *last* message received by this ship.
-      procedure Orbiting (Throttle : Real) is
+      procedure Orbiting (Throttle : Throttle_T) is
          Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
          Orbit : Vector_3D; -- the orbit where ships fly along
       begin

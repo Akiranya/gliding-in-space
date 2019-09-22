@@ -8,11 +8,11 @@ package Vehicle_Message_Type is
    -- Replace this record definition by what your vehicles need to communicate.
 
    type Inter_Vehicle_Messages is record
-      Sender : Positive; -- who sent the message
+      Sender : Swarm_Element_Index; -- who sent the message
       Globe : Energy_Globe;
       Charging : Boolean; -- whether the sender is going to charge
-      Leader : Positive; -- the ship which guides all other vehicles to vanish
-      Target_Vanished : Positive; -- who is asked to vanish
+      Leader : Swarm_Element_Index; -- the ship which guides all other vehicles to vanish
+      Target_Vanished : Swarm_Element_Index; -- who is asked to vanish
    end record;
 
 end Vehicle_Message_Type;
