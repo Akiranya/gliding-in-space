@@ -1,17 +1,11 @@
--- Suggestions for packages which might be useful:
-
 with Ada.Numerics;               use Ada.Numerics;
 with Ada.Text_IO;                use Ada.Text_IO;
 with Exceptions;                 use Exceptions;
 with Real_Type;                  use Real_Type;
---  with Generic_Sliding_Statistics;
---  with Rotations;                  use Rotations;
 with Vectors_3D;                 use Vectors_3D;
 with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
---  with Swarm_Structures;           use Swarm_Structures;
 with Swarm_Structures_Base;      use Swarm_Structures_Base;
---  with Ada.Real_Time; use Ada.Real_Time;
 with Ada.Containers; use Ada.Containers;
 with Ada.Containers.Ordered_Sets;
 
@@ -31,8 +25,8 @@ package body Vehicle_Task_Type is
       package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Swarm_Element_Index);
       use Vehicle_No_Set;
       Reserved_Vehicles : Vehicle_No_Set.Set;
-
       Reserved_Vehicles_Length : Count_Type;
+
       Has_Expanded_Radius : Boolean := True; -- for optimization ...
 
       --------------------------------
@@ -40,7 +34,7 @@ package body Vehicle_Task_Type is
       --------------------------------
 
       T : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
-      R : Real := 0.1; -- orbit radius, will be expanded if there's more ships
+      R : Distances := 0.1; -- orbit radius, will be expanded if there's more ships
 
       --------------------------------
       -- helper funcs/procs:
@@ -49,7 +43,7 @@ package body Vehicle_Task_Type is
       -- overview: gets a element from array
       -- p.s. from the time being, just grabs the first element in this array,
       -- it might be expanded when i have new good idea.
-      function Grab_A_Globe (Globes : Energy_Globes) return Energy_Globe is (Globes (1));
+      function Grab_A_Globe (Globes : Energy_Globes) return Energy_Globe is (Globes (Positive'First));
 
       -- overview: checks if there's any globe nearby.
       function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is (Globes'Length > 0);
@@ -58,11 +52,12 @@ package body Vehicle_Task_Type is
       -- p.s. info needed for calculating orbit is Last_Msg which
       -- is the *last* message received by this ship.
       procedure Orbiting (Throttle : Throttle_T) is
+         use Real_Elementary_Functions;
          Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
          Orbit : Vector_3D; -- the orbit where ships fly along
       begin
-         Orbit := (x => Real_Elementary_Functions.Cos (T),
-                   y => Real_Elementary_Functions.Sin (T),
+         Orbit := (x => Cos (T),
+                   y => Sin (T),
                    z => 0.0);
          if Has_Expanded_Radius and then Reserved_Vehicles_Length > 24 then
             R := 0.2; -- dynamically adjusts orbit radius.
@@ -71,9 +66,7 @@ package body Vehicle_Task_Type is
          Orbit := Orbit * R; -- a point on circle: (r*cos(t), r*sin(t), 0)
          Orbit := Orbit + Last_Msg.Globe.Position; -- sets orbiting origin.
          Orbit := Orbit + Last_Msg.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
-
          T := T + Pi / Tick_Per_Update;
-
          Set_Destination (Orbit);
          Set_Throttle (Throttle);
       end Orbiting;
@@ -138,10 +131,9 @@ package body Vehicle_Task_Type is
                declare
                   Incomming_Msg : Inter_Vehicle_Messages;
                   -- Incomming_Message is here to decide if the ship
-                  -- should update (partial) local rencent message (and send it out).
+                  -- should update (partial) incomming messages (and forward it out).
                begin
                   Receive (Incomming_Msg);
-
                   Last_Msg := Incomming_Msg; -- replaces all local messages with incomming messages
 
                   -- accumulates reserved ships until Target_No_of_Elements
@@ -149,8 +141,6 @@ package body Vehicle_Task_Type is
                   if Reserved_Vehicles_Length < Count_Type (Target_No_of_Elements) then
                      Reserved_Vehicles.Include (Last_Msg.Sender);
                   end if;
-
---                    Report ("agrees on the leader:" & Last_Msg.Leader'Image);
 
                   --------------------------------
                   -- selects the leader & kill ships:
@@ -160,10 +150,8 @@ package body Vehicle_Task_Type is
                   if Reserved_Vehicles_Length >= Count_Type (Target_No_of_Elements)
                     and then Last_Msg.Leader = Vehicle_No
                   then
-                     -- TODO: coordinate other vehicles to vanish.
                      if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
                         Last_Msg.Target_Vanished := Last_Msg.Sender;
-
                         Report ("destruction target:" & Last_Msg.Sender'Image);
                      end if;
                   end if;
@@ -200,16 +188,11 @@ package body Vehicle_Task_Type is
             -- this ship has not received any charging request yet,
             -- which means that there won't be many of ships, nearby this ship,
             -- also intending to charge.
-
             -- that is, this avoid too many ships competing for globes.
-
             if Current_Charge < Full_Charge * 0.75 and then not Last_Msg.Charging then
                Last_Msg.Charging := True;
                Local_Charging := True;
                Send (Last_Msg); -- tells other ships i'm going to charge.
-
-               -- TODO: go to different globe if too many charging nearby.
-
                Set_Destination (Last_Msg.Globe.Position);
                Set_Throttle (Full_Throttle);
             end if;
@@ -220,10 +203,8 @@ package body Vehicle_Task_Type is
 
             -- p.s. to figure out what conditions exactly represent 'finished charging',
             -- we can use Current_Charge and Local_Charging flag.
-
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
-
             if Current_Charge >= Full_Charge * 0.9 and then Local_Charging then
                Last_Msg.Charging := False;
                Local_Charging := False;
@@ -240,5 +221,3 @@ package body Vehicle_Task_Type is
    end Vehicle_Task;
 
 end Vehicle_Task_Type;
-
---  Vectors_3D."abs" (Point_1 - Point_2) -- calculates distance between two points
