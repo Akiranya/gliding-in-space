@@ -6,7 +6,8 @@ with Vectors_3D;                 use Vectors_3D;
 with Vehicle_Interface;          use Vehicle_Interface;
 with Vehicle_Message_Type;       use Vehicle_Message_Type;
 with Swarm_Structures_Base;      use Swarm_Structures_Base;
-with Ada.Containers; use Ada.Containers;
+with Utils;                      use Utils;
+with Ada.Containers;             use Ada.Containers;
 with Ada.Containers.Ordered_Sets;
 
 package body Vehicle_Task_Type is
@@ -41,14 +42,6 @@ package body Vehicle_Task_Type is
       -- helper funcs/procs:
       --------------------------------
 
-      -- overview: gets a element from array
-      -- p.s. from the time being, just grabs the first element in this array,
-      -- it might be expanded when i have new good idea.
-      function Grab_A_Globe (Globes : Energy_Globes) return Energy_Globe is (Globes (Positive'First));
-
-      -- overview: checks if there's any globe nearby.
-      function Has_Energy_Nearby (Globes : Energy_Globes) return Boolean is (Globes'Length > 0);
-
       -- overview: let the ship fly along an orbit! this helps message spread out!
       -- p.s. info needed for calculating orbit is Last_Msg which
       -- is the *last* message received by this ship.
@@ -58,9 +51,7 @@ package body Vehicle_Task_Type is
          Orbit : Vector_3D; -- the orbit where ships fly along
          R : Distances; -- orbit radius, will be expanded if more ships are found
       begin
-         Orbit := (x => Cos (T),
-                   y => Sin (T),
-                   z => 0.0);
+         Orbit := (x => Cos (T), y => Sin (T), z => 0.0);
          if Reserved_Vehicles_Length < 24 then
             R := 0.1;
          else
@@ -82,13 +73,11 @@ package body Vehicle_Task_Type is
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
          Vehicle_No     := Set_Vehicle_No;
          Local_Task_Id  := Current_Task;
-
          -- initializes Last_Msg to avoid 'read-before-write' exception
-         Last_Msg := (Sender => Vehicle_No,
-                      Globe => (Position => Zero_Vector_3D,
-                                Velocity => Zero_Vector_3D),
-                      Charging => False,
-                      Leader => Vehicle_No, -- at the beginning, every vehicle think itself is leader
+         Last_Msg := (Sender          => Vehicle_No,
+                      Globe           => (Position => Zero_Vector_3D, Velocity => Zero_Vector_3D),
+                      Charging        => False,
+                      Leader          => Vehicle_No, -- at the beginning, every vehicle think itself is leader
                       Target_Vanished => Positive'Last); -- Positive'Last is a 'null value'
       end Identify;
 
@@ -111,10 +100,10 @@ package body Vehicle_Task_Type is
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
                   Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
-                  Outgoing_Msg : constant Inter_Vehicle_Messages := (Sender => Vehicle_No,
-                                                                     Globe => Lucky_Globe,
-                                                                     Charging => False,
-                                                                     Leader => Last_Msg.Leader,
+                  Outgoing_Msg : constant Inter_Vehicle_Messages := (Sender          => Vehicle_No,
+                                                                     Globe           => Lucky_Globe,
+                                                                     Charging        => False,
+                                                                     Leader          => Last_Msg.Leader,
                                                                      Target_Vanished => Last_Msg.Target_Vanished);
                begin
                   Last_Msg := Outgoing_Msg; Send (Last_Msg);
