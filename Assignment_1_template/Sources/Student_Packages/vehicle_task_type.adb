@@ -16,6 +16,12 @@ package body Vehicle_Task_Type is
       Vehicle_No : Positive;
 
       --------------------------------
+      -- config:
+      --------------------------------
+
+      Destruction : constant Boolean := False; -- Stage D mode
+
+      --------------------------------
       -- local storage:
       --------------------------------
 
@@ -23,18 +29,13 @@ package body Vehicle_Task_Type is
       Local_Charging : Boolean := False;
 
       package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Swarm_Element_Index);
-      use Vehicle_No_Set;
-      Reserved_Vehicles : Vehicle_No_Set.Set;
-      Reserved_Vehicles_Length : Count_Type;
-
-      Has_Expanded_Radius : Boolean := True; -- for optimization ...
+      use Vehicle_No_Set; Reserved_Vehicles : Vehicle_No_Set.Set; Reserved_Vehicles_Length : Count_Type;
 
       --------------------------------
       -- orbit parameters:
       --------------------------------
 
       T : Real := 0.0; -- time, constantly increasing while the game is running, for drawing circle
-      R : Distances := 0.1; -- orbit radius, will be expanded if there's more ships
 
       --------------------------------
       -- helper funcs/procs:
@@ -53,22 +54,23 @@ package body Vehicle_Task_Type is
       -- is the *last* message received by this ship.
       procedure Orbiting (Throttle : Throttle_T) is
          use Real_Elementary_Functions;
-         Tick_Per_Update : constant Real := 64.0; -- orbiting speed. **greater means slower**
+         T_Inrcement : constant Real := 64.0; -- radian increment. **greater means this ship spins slower**
          Orbit : Vector_3D; -- the orbit where ships fly along
+         R : Distances; -- orbit radius, will be expanded if more ships are found
       begin
          Orbit := (x => Cos (T),
                    y => Sin (T),
                    z => 0.0);
-         if Has_Expanded_Radius and then Reserved_Vehicles_Length > 24 then
-            R := 0.2; -- dynamically adjusts orbit radius.
-            Has_Expanded_Radius := False; -- set it to False to avoid calling Set.Length multiple times
+         if Reserved_Vehicles_Length < 24 then
+            R := 0.1;
+         else
+            R := 0.2;
          end if;
          Orbit := Orbit * R; -- a point on circle: (r*cos(t), r*sin(t), 0)
          Orbit := Orbit + Last_Msg.Globe.Position; -- sets orbiting origin.
          Orbit := Orbit + Last_Msg.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
-         T := T + Pi / Tick_Per_Update;
-         Set_Destination (Orbit);
-         Set_Throttle (Throttle);
+         T := T + Pi / T_Inrcement;
+         Set_Destination (Orbit); Set_Throttle (Throttle);
       end Orbiting;
 
       procedure Report (Info : String) is
@@ -115,8 +117,7 @@ package body Vehicle_Task_Type is
                                                                      Leader => Last_Msg.Leader,
                                                                      Target_Vanished => Last_Msg.Target_Vanished);
                begin
-                  Last_Msg := Outgoing_Msg;
-                  Send (Last_Msg);
+                  Last_Msg := Outgoing_Msg; Send (Last_Msg);
                end;
             end if;
 
@@ -149,10 +150,11 @@ package body Vehicle_Task_Type is
                   -- fact: the ship which first finds the globe is the leader!
                   if Reserved_Vehicles_Length >= Count_Type (Target_No_of_Elements)
                     and then Last_Msg.Leader = Vehicle_No
+                    and then Destruction
                   then
                      if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
                         Last_Msg.Target_Vanished := Last_Msg.Sender;
-                        Report ("destruction target:" & Last_Msg.Sender'Image);
+                        Report ("destruction target:" & Last_Msg.Target_Vanished'Image);
                      end if;
                   end if;
 
@@ -166,8 +168,7 @@ package body Vehicle_Task_Type is
             --------------------------------
 
             if Vehicle_No = Last_Msg.Target_Vanished then
-               Report ("vanished.");
-               exit Outer_task_loop;
+               Report ("vanished."); exit Outer_task_loop;
             end if;
 
             --------------------------------
@@ -190,11 +191,9 @@ package body Vehicle_Task_Type is
             -- also intending to charge.
             -- that is, this avoid too many ships competing for globes.
             if Current_Charge < Full_Charge * 0.75 and then not Last_Msg.Charging then
-               Last_Msg.Charging := True;
-               Local_Charging := True;
+               Last_Msg.Charging := True; Local_Charging := True;
                Send (Last_Msg); -- tells other ships i'm going to charge.
-               Set_Destination (Last_Msg.Globe.Position);
-               Set_Throttle (Full_Throttle);
+               Set_Destination (Last_Msg.Globe.Position); Set_Throttle (Full_Throttle);
             end if;
 
             ---------------------------------
@@ -206,8 +205,7 @@ package body Vehicle_Task_Type is
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
             if Current_Charge >= Full_Charge * 0.9 and then Local_Charging then
-               Last_Msg.Charging := False;
-               Local_Charging := False;
+               Last_Msg.Charging := False; Local_Charging := False;
                Orbiting (Throttle => Full_Throttle); -- go back to orbit by using *local* globe info.
             end if;
 
