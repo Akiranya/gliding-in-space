@@ -26,11 +26,13 @@ package body Vehicle_Task_Type is
       -- local storage:
       --------------------------------
 
-      Last_Msg : Inter_Vehicle_Messages;
+      Last_Msg       : Inter_Vehicle_Messages;
       Local_Charging : Boolean := False;
 
       package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Swarm_Element_Index);
-      use Vehicle_No_Set; Reserved_Vehicles : Vehicle_No_Set.Set; Reserved_Vehicles_Length : Count_Type;
+      use Vehicle_No_Set;
+      Reserved_Vehicles        : Vehicle_No_Set.Set;
+      Reserved_Vehicles_Length : Count_Type;
 
       --------------------------------
       -- orbit parameters:
@@ -48,8 +50,8 @@ package body Vehicle_Task_Type is
       procedure Orbiting (Throttle : Throttle_T) is
          use Real_Elementary_Functions;
          T_Inrcement : constant Real := 64.0; -- radian increment. **greater means this ship spins slower**
-         Orbit : Vector_3D; -- the orbit where ships fly along
-         R : Distances; -- orbit radius, will be expanded if more ships are found
+         Orbit       : Vector_3D; -- the orbit where ships fly along
+         R           : Distances; -- orbit radius, will be expanded if more ships are found
       begin
          Orbit := (x => Cos (T), y => Sin (T), z => 0.0);
          if Reserved_Vehicles_Length < 24 then
@@ -60,7 +62,7 @@ package body Vehicle_Task_Type is
          Orbit := Orbit * R; -- a point on circle: (r*cos(t), r*sin(t), 0)
          Orbit := Orbit + Last_Msg.Globe.Position; -- sets orbiting origin.
          Orbit := Orbit + Last_Msg.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
-         T := T + Pi / T_Inrcement;
+         T     := T + Pi / T_Inrcement;
          Set_Destination (Orbit); Set_Throttle (Throttle);
       end Orbiting;
 
@@ -71,8 +73,8 @@ package body Vehicle_Task_Type is
 
    begin
       accept Identify (Set_Vehicle_No : Positive; Local_Task_Id : out Task_Id) do
-         Vehicle_No     := Set_Vehicle_No;
-         Local_Task_Id  := Current_Task;
+         Vehicle_No    := Set_Vehicle_No;
+         Local_Task_Id := Current_Task;
          -- initializes Last_Msg to avoid 'read-before-write' exception
          Last_Msg := (Sender          => Vehicle_No,
                       Globe           => (Position => Zero_Vector_3D, Velocity => Zero_Vector_3D),
@@ -99,7 +101,7 @@ package body Vehicle_Task_Type is
 
             if Has_Energy_Nearby (Energy_Globes_Around) then
                declare
-                  Lucky_Globe : constant Energy_Globe := Grab_A_Globe (Energy_Globes_Around);
+                  Lucky_Globe  : constant Energy_Globe           := Grab_A_Globe (Energy_Globes_Around);
                   Outgoing_Msg : constant Inter_Vehicle_Messages := (Sender          => Vehicle_No,
                                                                      Globe           => Lucky_Globe,
                                                                      Charging        => False,
@@ -180,7 +182,8 @@ package body Vehicle_Task_Type is
             -- also intending to charge.
             -- that is, this avoid too many ships competing for globes.
             if Current_Charge < Full_Charge * 0.75 and then not Last_Msg.Charging then
-               Last_Msg.Charging := True; Local_Charging := True;
+               Last_Msg.Charging := True;
+               Local_Charging    := True;
                Send (Last_Msg); -- tells other ships i'm going to charge.
                Set_Destination (Last_Msg.Globe.Position); Set_Throttle (Full_Throttle);
             end if;
@@ -194,7 +197,8 @@ package body Vehicle_Task_Type is
             -- if local charging flag is True, it means that this ship *was* going to charge,
             -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
             if Current_Charge >= Full_Charge * 0.9 and then Local_Charging then
-               Last_Msg.Charging := False; Local_Charging := False;
+               Last_Msg.Charging := False;
+               Local_Charging    := False;
                Orbiting (Throttle => Full_Throttle); -- go back to orbit by using *local* globe info.
             end if;
 
