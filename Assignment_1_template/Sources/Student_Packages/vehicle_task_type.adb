@@ -20,7 +20,7 @@ package body Vehicle_Task_Type is
       -- config:
       --------------------------------
 
-      Destruction : constant Boolean := False; -- Stage D mode
+      Destruction : constant Boolean := True; -- enable stage D mode?
 
       --------------------------------
       -- local storage:
@@ -29,10 +29,10 @@ package body Vehicle_Task_Type is
       Last_Msg       : Inter_Vehicle_Messages;
       Local_Charging : Boolean := False;
 
-      package Vehicle_No_Set is new Ada.Containers.Ordered_Sets (Element_Type => Swarm_Element_Index);
-      use Vehicle_No_Set;
-      Reserved_Vehicles        : Vehicle_No_Set.Set;
-      Reserved_Vehicles_Length : Count_Type;
+      package Swarm_Element_Index_Ordered_Sets is
+        new Ada.Containers.Ordered_Sets (Element_Type => Swarm_Element_Index);
+      use Swarm_Element_Index_Ordered_Sets;
+      Reserved_Vehicles : Swarm_Element_Index_Ordered_Sets.Set;
 
       --------------------------------
       -- orbit parameters:
@@ -44,23 +44,15 @@ package body Vehicle_Task_Type is
       -- helper funcs/procs:
       --------------------------------
 
-      -- overview: let the ship fly along an orbit! this helps message spread out!
-      -- p.s. info needed for calculating orbit is Last_Msg which
-      -- is the *last* message received by this ship.
       procedure Orbiting (Throttle : Throttle_T) is
          use Real_Elementary_Functions;
-         T_Inrcement : constant Real := 64.0; -- radian increment. **greater means this ship spins slower**
-         Orbit       : Vector_3D; -- the orbit where ships fly along
-         R           : Distances; -- orbit radius, will be expanded if more ships are found
+         T_Inrcement : constant Real      := 64.0; -- radian increment. **greater means this ship spins slower**
+         R           : constant Distances := 0.15; -- orbit radius, will be expanded if more ships are found
+         Orbit       : Vector_3D;                  -- the orbit where ships fly along
       begin
          Orbit := (x => Cos (T), y => Sin (T), z => 0.0);
-         if Reserved_Vehicles_Length < 24 then
-            R := 0.1;
-         else
-            R := 0.2;
-         end if;
-         Orbit := Orbit * R; -- a point on circle: (r*cos(t), r*sin(t), 0)
-         Orbit := Orbit + Last_Msg.Globe.Position; -- sets orbiting origin.
+         Orbit := Orbit * R;                       -- a point on circle: (r*cos(t), r*sin(t), 0)
+         Orbit := Orbit + Last_Msg.Globe.Position; -- sets orbiting origin, now the point is (a+r*cos(t), b+r*sin(t), c+0)
          Orbit := Orbit + Last_Msg.Globe.Velocity; -- adds velocity to generate more roboust orbit track.
          T     := T + Pi / T_Inrcement;
          Set_Destination (Orbit); Set_Throttle (Throttle);
@@ -79,11 +71,11 @@ package body Vehicle_Task_Type is
          Last_Msg := (Sender          => Vehicle_No,
                       Globe           => (Position => Zero_Vector_3D, Velocity => Zero_Vector_3D),
                       Charging        => False,
-                      Leader          => Vehicle_No, -- at the beginning, every vehicle think itself is leader
-                      Target_Vanished => Positive'Last); -- Positive'Last is a 'null value'
+                      Leader          => Vehicle_No,     -- at the beginning, every vehicle think itself is leader.
+                      Target_Vanished => Positive'Last); -- Positive'Last is a placeholder.
       end Identify;
 
-      Reserved_Vehicles.Insert (Vehicle_No); -- initializes the set
+      Reserved_Vehicles.Insert (Vehicle_No); -- adds itself to set.
 
       select
 
@@ -113,44 +105,38 @@ package body Vehicle_Task_Type is
             end if;
 
             --------------------------------
-            -- try to receive message:
+            -- try to receive & forward messages:
             --------------------------------
-
-            -- if this ship receives a message,
-            -- it should then spread this message to its nearby ships.
 
             if Messages_Waiting then
                declare
-                  Incomming_Msg : Inter_Vehicle_Messages;
-                  -- Incomming_Message is here to decide if the ship
-                  -- should update (partial) incomming messages (and forward it out).
+                  Incoming_Msg : Inter_Vehicle_Messages;
                begin
-                  Receive (Incomming_Msg);
-                  Last_Msg := Incomming_Msg; -- replaces all local messages with incomming messages
+                  Receive (Incoming_Msg);
+                  Last_Msg := Incoming_Msg; -- replaces all local messages with incomming messages
 
-                  -- accumulates reserved ships until Target_No_of_Elements
-                  Reserved_Vehicles_Length := Reserved_Vehicles.Length;
-                  if Reserved_Vehicles_Length < Count_Type (Target_No_of_Elements) then
-                     Reserved_Vehicles.Include (Last_Msg.Sender);
-                  end if;
+                  if Last_Msg.Leader = Vehicle_No then
 
-                  --------------------------------
-                  -- selects the leader & kill ships:
-                  --------------------------------
-
-                  -- fact: the ship which first finds the globe is the leader!
-                  if Reserved_Vehicles_Length >= Count_Type (Target_No_of_Elements)
-                    and then Last_Msg.Leader = Vehicle_No
-                    and then Destruction
-                  then
-                     if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
-                        Last_Msg.Target_Vanished := Last_Msg.Sender;
-                        Report ("destruction target:" & Last_Msg.Target_Vanished'Image);
+                     -- accumulates reserved vehicles until reaching Target_No_of_Elements.
+                     if Reserved_Vehicles.Length < Count_Type (Target_No_of_Elements) then
+                        Reserved_Vehicles.Include (Last_Msg.Sender);
                      end if;
+
+                     --------------------------------
+                     -- writes messages that kill ships:
+                     --------------------------------
+
+                     if Reserved_Vehicles.Length >= Count_Type (Target_No_of_Elements) and then Destruction then
+                        if not Reserved_Vehicles.Contains (Last_Msg.Sender) then
+                           Last_Msg.Target_Vanished := Last_Msg.Sender;
+                           Report ("destruction target:" & Last_Msg.Target_Vanished'Image);
+                        end if;
+                     end if;
+
                   end if;
 
                   Last_Msg.Sender := Vehicle_No; -- attach this Vehicle_No to outgoing messages
-                  Send (Last_Msg); -- spreads *modified* incomming messages to nearby ships.
+                  Send (Last_Msg);               -- spreads *modified* incomming messages to nearby ships.
                end;
             end if;
 
@@ -166,8 +152,6 @@ package body Vehicle_Task_Type is
             -- normal orbiting:
             --------------------------------
 
-            -- if this ship is not going to charge, then
-            -- let it orbit around the globe.
             if not Local_Charging then
                Orbiting (Throttle => Full_Throttle * 0.5);
             end if;
@@ -176,11 +160,6 @@ package body Vehicle_Task_Type is
             -- try to charge:
             ---------------------------------
 
-            -- (not Last_Msg.Charging) indicates that
-            -- this ship has not received any charging request yet,
-            -- which means that there won't be many of ships, nearby this ship,
-            -- also intending to charge.
-            -- that is, this avoid too many ships competing for globes.
             if Current_Charge < Full_Charge * 0.75 and then not Last_Msg.Charging then
                Last_Msg.Charging := True;
                Local_Charging    := True;
@@ -192,10 +171,6 @@ package body Vehicle_Task_Type is
             -- after recharging, go back to orbit:
             ---------------------------------
 
-            -- p.s. to figure out what conditions exactly represent 'finished charging',
-            -- we can use Current_Charge and Local_Charging flag.
-            -- if local charging flag is True, it means that this ship *was* going to charge,
-            -- and Current_Charge >= 0.75 means that it *now* resumes its energy.
             if Current_Charge >= Full_Charge * 0.9 and then Local_Charging then
                Last_Msg.Charging := False;
                Local_Charging    := False;
